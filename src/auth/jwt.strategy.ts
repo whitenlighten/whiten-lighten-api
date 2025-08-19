@@ -8,16 +8,16 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   private readonly logger = new Logger(JwtStrategy.name);
 
   constructor(private configService: ConfigService) {
-    const secret = configService.get<string>('JWT_ACCESS_SECRET');
-    if (!secret) {
-      this.logger.error('JWT_ACCESS_SECRET is not defined in environment variables');
-      throw new Error('JWT_ACCESS_SECRET is not defined');
-    }
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: secret,
+      secretOrKey: configService.get<string>('JWT_ACCESS_SECRET', 'default-secret'), // Fallback for testing
     });
+    const secret = configService.get<string>('JWT_ACCESS_SECRET');
+    if (!secret || secret === 'your-secure-jwt-secret-key-here') {
+      this.logger.error('JWT_ACCESS_SECRET is not defined or is a placeholder in environment variables');
+      throw new Error('JWT_ACCESS_SECRET is not properly configured');
+    }
     this.logger.log('JwtStrategy initialized successfully');
   }
 
@@ -26,6 +26,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       this.logger.error('Invalid token payload');
       throw new UnauthorizedException('Invalid token payload');
     }
+    this.logger.log(`Validated payload: userId=${payload.userId}, role=${payload.role}`);
     return { userId: payload.userId, role: payload.role };
   }
 }

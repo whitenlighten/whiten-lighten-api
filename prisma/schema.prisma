@@ -7,6 +7,86 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id            String         @id @default(uuid())
+  fullName      String
+  email         String         @unique
+  password      String
+  phone         String         @unique
+  role          Role
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  deletedAt     DateTime?
+  lastLogin     DateTime?
+  appointments  Appointment[]  @relation("DoctorAppointments")
+  clinicalNotes ClinicalNote[] @relation("ProviderClinicalNotes")
+  refreshTokens RefreshToken[]
+
+  @@index([email])
+}
+
+model Patient {
+  id               String         @id @default(uuid())
+  firstName        String
+  lastName         String
+  email            String         @unique
+  phone            String
+  address          String
+  dateOfBirth      DateTime
+  gender           Gender
+  emergencyContact Json
+  medicalHistory   String?
+  allergies        String?
+  dentalHistory    String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  status           PatientStatus  @default(ACTIVE)
+  deletedAt        DateTime?
+  appointments     Appointment[]
+  clinicalNotes    ClinicalNote[]
+}
+
+model Appointment {
+  id            String            @id @default(uuid())
+  type          String
+  notes         String?
+  status        AppointmentStatus @default(PENDING)
+  createdAt     DateTime          @default(now())
+  patientId     String
+  doctorId      String
+  appointmentAt DateTime
+  updatedAt     DateTime          @updatedAt
+  doctor        User              @relation("DoctorAppointments", fields: [doctorId], references: [id])
+  patient       Patient           @relation(fields: [patientId], references: [id])
+}
+
+model ClinicalNote {
+  id          String   @id @default(uuid())
+  diagnosis   String
+  treatment   String
+  vitals      Json?
+  medications String?
+  followUp    String?
+  additional  String?
+  createdAt   DateTime @default(now())
+  patientId   String
+  providerId  String?
+  updatedAt   DateTime @updatedAt
+  patient     Patient  @relation(fields: [patientId], references: [id])
+  provider    User?    @relation("ProviderClinicalNotes", fields: [providerId], references: [id])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+}
+
 enum Gender {
   MALE
   FEMALE
@@ -31,91 +111,4 @@ enum AppointmentStatus {
   REJECTED
   COMPLETED
   CANCELLED
-}
-
-model User {
-  id           String        @id @default(uuid())
-  fullName     String
-  email        String        @unique
-  password     String
-  phone        String        @unique
-  role         Role
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  deletedAt    DateTime?
-  lastLogin    DateTime?
-
-  appointments  Appointment[] @relation("DoctorAppointments")
-  refreshTokens RefreshToken[]
-  clinicalNotes ClinicalNote[] @relation("ProviderClinicalNotes")
-
-  @@index([email])
-}
-
-model Patient {
-  id               String         @id @default(uuid())
-  firstName        String
-  lastName         String
-  email            String         @unique
-  phone            String
-  address          String
-  dateOfBirth      DateTime
-  gender           Gender
-  emergencyContact Json
-  medicalHistory   String?
-  allergies        String?
-  dentalHistory    String?
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
-  status           PatientStatus  @default(ACTIVE)
-  deletedAt        DateTime?
-
-  appointments     Appointment[]
-  clinicalNotes    ClinicalNote[]
-}
-
-model Appointment {
-  id             String            @id @default(uuid())
-  appointmentAt  DateTime
-  type           String
-  notes          String?
-  status         AppointmentStatus @default(PENDING)
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
-
-  patientId      String
-  doctorId       String
-
-  doctor         User              @relation("DoctorAppointments", fields: [doctorId], references: [id])
-  patient        Patient           @relation(fields: [patientId], references: [id])
-}
-
-model ClinicalNote {
-  id          String   @id @default(uuid())
-  diagnosis   String
-  treatment   String
-  vitals      Json?
-  medications String?
-  followUp    String?
-  additional  String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  patientId   String
-  patient     Patient  @relation(fields: [patientId], references: [id])
-
-  providerId  String?
-  provider    User?    @relation("ProviderClinicalNotes", fields: [providerId], references: [id])
-}
-
-model RefreshToken {
-  id         String   @id @default(uuid())
-  token      String   @unique
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  expiresAt  DateTime
-  revoked    Boolean  @default(false)
-
-  userId     String
-  user       User     @relation(fields: [userId], references: [id])
 }

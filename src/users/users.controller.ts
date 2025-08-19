@@ -16,10 +16,11 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { ApiBearerAuth, ApiTags, ApiOperation, ApiResponse, ApiBody, ApiOkResponse, ApiQuery } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
-import { Role } from '@prisma/client';
+import {  } from '@prisma/client';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { Roles } from 'src/auth/decorator/roles.decorator';
 import { UserResponseDto } from './dto/user-response.dto';
+import { Role } from '@prisma/client';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @ApiTags('Users')
