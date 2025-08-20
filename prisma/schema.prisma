@@ -21,61 +21,65 @@ model User {
   appointments  Appointment[]  @relation("DoctorAppointments")
   clinicalNotes ClinicalNote[] @relation("ProviderClinicalNotes")
   refreshTokens RefreshToken[]
+  auditLogs     AuditLog[]     @relation("UserAuditLogs")
 
   @@index([email])
 }
 
 model PreRegistration {
-  id          String   @id @default(uuid())
+  id          String                @id @default(uuid())
   firstName   String
   lastName    String
   dateOfBirth DateTime
   phone       String
-  email       String   @unique
-  createdAt   DateTime @default(now())
-  patient     Patient? // Relation defined on Patient side
+  email       String
+  address     String?
+  preRegCode  String                @unique
+  status      PreRegistrationStatus @default(PENDING)
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
 
-  @@map("pre_registrations")
+  // Optional one-to-one relation to Patient
+  patient Patient? @relation("PreRegPatient")
 }
 
 model Patient {
-  id                String          @id @default(uuid())
-  firstName         String
-  lastName          String
-  email             String          @unique
-  phone             String
-  address           String
-  dateOfBirth       DateTime
-  gender            Gender
-  emergencyContact  Json
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
-  status            PatientStatus   @default(ACTIVE)
-  deletedAt         DateTime?
+  id               String        @id @default(uuid())
+  firstName        String
+  lastName         String
+  email            String        @unique
+  phone            String
+  address          String?
+  dateOfBirth      DateTime
+  gender           Gender?
+  emergencyContact Json?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  status           PatientStatus @default(ACTIVE)
+  deletedAt        DateTime?
 
-  appointments      Appointment[]
-  clinicalNotes     ClinicalNote[]
-  
-  // One-to-one relation with PreRegistration
-  preRegistration   PreRegistration? @relation(fields: [preRegistrationId], references: [id])
-  preRegistrationId String?           @unique
+  appointments   Appointment[]
+  clinicalNotes  ClinicalNote[]
+  medicalRecords MedicalRecord[]
 
-  medicalRecords    MedicalRecord[]
+  // Optional back relation to PreRegistration
+  preRegistration   PreRegistration? @relation("PreRegPatient", fields: [preRegistrationId], references: [id])
+  preRegistrationId String?          @unique
 }
 
 model MedicalRecord {
-  id          String   @id @default(uuid())
+  id          String           @id @default(uuid())
   type        RecordType
   name        String
   notes       String?
   diagnosedAt DateTime?
   resolvedAt  DateTime?
   severity    AllergySeverity?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
 
-  patientId   String
-  patient     Patient @relation(fields: [patientId], references: [id])
+  patientId String
+  patient   Patient @relation(fields: [patientId], references: [id])
 }
 
 model Appointment {
@@ -84,10 +88,10 @@ model Appointment {
   notes         String?
   status        AppointmentStatus @default(PENDING)
   createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  appointmentAt DateTime
   patientId     String
   doctorId      String
-  appointmentAt DateTime
-  updatedAt     DateTime          @updatedAt
   doctor        User              @relation("DoctorAppointments", fields: [doctorId], references: [id])
   patient       Patient           @relation(fields: [patientId], references: [id])
 }
@@ -101,9 +105,9 @@ model ClinicalNote {
   followUp    String?
   additional  String?
   createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
   patientId   String
   providerId  String?
-  updatedAt   DateTime @updatedAt
   patient     Patient  @relation(fields: [patientId], references: [id])
   provider    User?    @relation("ProviderClinicalNotes", fields: [providerId], references: [id])
 }
@@ -118,6 +122,30 @@ model RefreshToken {
   userId    String
   user      User     @relation(fields: [userId], references: [id])
 }
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  action     String
+  resource   String
+  resourceId String?
+  changes    Json?
+  createdAt  DateTime @default(now())
+
+  user User? @relation("UserAuditLogs", fields: [userId], references: [id])
+}
+
+model AuditTrail {
+  id         String   @id @default(cuid())
+  action     String   // CREATE, UPDATE, DELETE
+  model      String
+  recordId   String
+  oldData    Json?
+  newData    Json?
+  createdBy  String?
+  createdAt  DateTime @default(now())
+}
+
 
 enum Gender {
   MALE
@@ -136,7 +164,6 @@ enum Role {
   FRONTDESK
   NURSE
   PATIENT
-
 }
 
 enum AppointmentStatus {
@@ -156,4 +183,9 @@ enum AllergySeverity {
   MILD
   MODERATE
   SEVERE
+}
+
+enum PreRegistrationStatus {
+  PENDING
+  COMPLETED
 }
