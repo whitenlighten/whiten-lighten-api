@@ -9,4 +9,4 @@ import { MedicalRecordController } from './medicalRecord.controller';
   controllers: [MedicalRecordController],
   exports: [MedicalRecordService],
 })
-export class MedicalRecordModule {}
+export class MedicalRecordsModule {} // 👈 plural to match AppModule
