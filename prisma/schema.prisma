@@ -25,25 +25,57 @@ model User {
   @@index([email])
 }
 
+model PreRegistration {
+  id          String   @id @default(uuid())
+  firstName   String
+  lastName    String
+  dateOfBirth DateTime
+  phone       String
+  email       String   @unique
+  createdAt   DateTime @default(now())
+  patient     Patient? // Relation defined on Patient side
+
+  @@map("pre_registrations")
+}
+
 model Patient {
-  id               String         @id @default(uuid())
-  firstName        String
-  lastName         String
-  email            String         @unique
-  phone            String
-  address          String
-  dateOfBirth      DateTime
-  gender           Gender
-  emergencyContact Json
-  medicalHistory   String?
-  allergies        String?
-  dentalHistory    String?
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
-  status           PatientStatus  @default(ACTIVE)
-  deletedAt        DateTime?
-  appointments     Appointment[]
-  clinicalNotes    ClinicalNote[]
+  id                String          @id @default(uuid())
+  firstName         String
+  lastName          String
+  email             String          @unique
+  phone             String
+  address           String
+  dateOfBirth       DateTime
+  gender            Gender
+  emergencyContact  Json
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  status            PatientStatus   @default(ACTIVE)
+  deletedAt         DateTime?
+
+  appointments      Appointment[]
+  clinicalNotes     ClinicalNote[]
+  
+  // One-to-one relation with PreRegistration
+  preRegistration   PreRegistration? @relation(fields: [preRegistrationId], references: [id])
+  preRegistrationId String?           @unique
+
+  medicalRecords    MedicalRecord[]
+}
+
+model MedicalRecord {
+  id          String   @id @default(uuid())
+  type        RecordType
+  name        String
+  notes       String?
+  diagnosedAt DateTime?
+  resolvedAt  DateTime?
+  severity    AllergySeverity?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  patientId   String
+  patient     Patient @relation(fields: [patientId], references: [id])
 }
 
 model Appointment {
@@ -102,7 +134,9 @@ enum Role {
   ADMIN
   DOCTOR
   FRONTDESK
-  ASSISTANT
+  NURSE
+  PATIENT
+
 }
 
 enum AppointmentStatus {
@@ -111,4 +145,15 @@ enum AppointmentStatus {
   REJECTED
   COMPLETED
   CANCELLED
+}
+
+enum RecordType {
+  HISTORY
+  ALLERGY
+}
+
+enum AllergySeverity {
+  MILD
+  MODERATE
+  SEVERE
 }
