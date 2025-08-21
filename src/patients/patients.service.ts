@@ -34,6 +34,69 @@ export class PatientService {
 
  
     // PreRegistration Methods
+
+async sendPreRegEmail(to: string, code: string) {
+  const html = `<!DOCTYPE html>
+  <html>
+    <head>
+      <meta charset="UTF-8" />
+      <title>Pre-Registration Code</title>
+    </head>
+    <body style="font-family: Arial, sans-serif; background-color: #f4f7fa; margin: 0; padding: 0;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="margin:0; padding:20px; background-color:#f4f7fa;">
+        <tr>
+          <td align="center">
+            <table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff; border-radius:8px; overflow:hidden; box-shadow:0 4px 8px rgba(0,0,0,0.1);">
+              <tr>
+                <td style="background-color:#0077b6; padding:20px; text-align:center; color:#ffffff; font-size:24px; font-weight:bold;">
+                  CelebDent
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:30px; color:#333333; font-size:16px; line-height:1.6;">
+                  <p style="margin:0 0 15px;">Hello,</p>
+                  <p style="margin:0 0 15px;">
+                    Thank you for pre-registering with <strong>CelebDent</strong>!  
+                    Your unique pre-registration code is:
+                  </p>
+                  <div style="text-align:center; margin:30px 0;">
+                    <span style="display:inline-block; padding:15px 30px; font-size:20px; font-weight:bold; color:#ffffff; background-color:#0077b6; border-radius:6px;">
+                      ${code}
+                    </span>
+                  </div>
+                  <p style="margin:0 0 15px;">
+                    Please keep this code safe — you will need it to complete your registration.  
+                  </p>
+                  <p style="margin:0;">
+                    Best regards,<br/>
+                    <strong>The CelebDent Team</strong>
+                  </p>
+                </td>
+              </tr>
+              <tr>
+                <td style="background-color:#f1f1f1; padding:15px; text-align:center; font-size:12px; color:#666666;">
+                  &copy; ${new Date().getFullYear()} CelebDent. All rights reserved.
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+    </body>
+  </html>`;
+
+  await this.transporter.sendMail({
+    from: '"CelebDent" <noreply@celebdent.com>',
+    to,
+    subject: 'Your CelebDent Pre-Registration Code',
+    text: `Thank you for pre-registering! Your code is: ${code}`,
+    html,
+  });
+}
+
+    
+            
+
  
   async createPreRegistration(dto: CreatePatientDto) {
     try {
@@ -53,12 +116,17 @@ export class PatientService {
         preRegCode: generatePreRegCode(),
       },
     });
-      return ok('Pre-registration created successfully', preReg);
+
+     await this.sendPreRegEmail(preReg.email, preReg.preRegCode);
+
+      return ok('Pre-registration created successfully- code sent to email', preReg);
     } catch (error) {
       console.error('createPreRegistration error:', error);
       throw new InternalServerErrorException('Error creating pre-registration');
     }
   }
+
+  
 
 
   async promotePreRegistration(preRegId: string) {
