@@ -22,7 +22,9 @@ import {
   CreatePatientDto,
   UpdatePatientDto,
 } from './dto/create-patient..dto';
+
 import { PatientResponseDto } from './dto/patient-rsponse.dto';
+import { Public } from 'src/common/decorator/public.decorator';
 
 @ApiTags('patients')
 @ApiBearerAuth()
@@ -36,7 +38,7 @@ export class PatientController {
    */
 
 
-
+  @Public()
   @Post('pre-registration')
   @ApiBody({ type: CreatePatientDto })
   @ApiResponse({
