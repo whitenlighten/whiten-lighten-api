@@ -55,10 +55,9 @@ export class PatientController {
     type: PatientResponseDto,
   })
   async promotePreRegistration(
-    @Param('preRegId') preRegId: string,
-    @Body('staffId') staffId: string,
+    @Param('preRegId') preRegId: string
   ) {
-    return this.patientService.promotePreRegistration(preRegId, staffId);
+    return this.patientService.promotePreRegistration(preRegId);
   }
 
 
