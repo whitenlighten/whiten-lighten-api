@@ -60,7 +60,7 @@ export class PatientService {
   }
 
 
-  async promotePreRegistration(preRegId: string, staffId: string) {
+  async promotePreRegistration(preRegId: string) {
     try {
       const preReg = await this.prisma.preRegistration.findUnique({ where: { id: preRegId } });
       if (!preReg) throw new NotFoundException(`Pre-registration not found`);
@@ -72,7 +72,6 @@ export class PatientService {
           email: preReg.email,
           phone: preReg.phone,
           dateOfBirth: preReg.dateOfBirth,
-          // Optionally add default values for other required fields
           gender: 'OTHER',
           address: '',
           emergencyContact: {},

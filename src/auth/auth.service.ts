@@ -118,7 +118,7 @@ export class AuthService {
       where: { id: user.id },
       data: { lastLogin: new Date() },
     });
-
+ 
     const accessToken = this.generateAccessToken({ userId: user.id, role: user.role });
     const refreshToken = await this.generateRefreshToken(user.id);
 
