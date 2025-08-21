@@ -1,88 +1,138 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+// src/mail/mail.service.ts
+import {
+  Injectable,
+  Logger,
+  InternalServerErrorException,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 
 @Injectable()
 export class MailService {
+  private readonly logger = new Logger(MailService.name);
   private transporter: nodemailer.Transporter;
 
-  constructor() {
+  constructor(private readonly config: ConfigService) {
+    const host = this.config.get<string>('SMTP_HOST') || 'smtp.gmail.com';
+    const port = Number(this.config.get<string>('SMTP_PORT') || 465);
+    const secure =
+      this.config.get<string>('SMTP_SECURE') === 'true' || port === 465;
+
     this.transporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 465, // use SSL
-      secure: true, // true for 465, false for 587
+      host,
+      port,
+      secure,
       auth: {
-        user: process.env.SMTP_USER, // your Gmail address
-        pass: process.env.SMTP_PASS, // your App Password
+        user: this.config.get<string>('SMTP_USER'),
+        pass: this.config.get<string>('SMTP_PASS'),
       },
+      tls: {
+        // for dev, if needed; in prod prefer valid certs
+        rejectUnauthorized:
+          this.config.get<string>('SMTP_REJECT_UNAUTHORIZED') !== 'false',
+      },
+    });
+
+    // verify transporter early so app fails fast if SMTP unreachable
+    this.transporter.verify((err, success) => {
+      if (err) {
+        this.logger.error('SMTP verification failed', err);
+      } else {
+        this.logger.log('SMTP transporter verified; ready to send emails');
+      }
+      if (success) {
+        this.logger.log('SMTP transporter verification succeeded');
+      }
     });
   }
 
-  /**
-   * Generic mail sender
-   */
-  async sendMail(
-    to: string,
-    subject: string,
-    text: string,
-    html?: string,
-  ): Promise<void> {
+  private formatFrom(): string {
+    return (
+      this.config.get<string>('EMAIL_FROM') ||
+      this.config.get<string>('SMTP_USER') ||
+      ''
+    );
+  }
+
+  // Generic send
+  async sendMail(to: string, subject: string, text: string, html?: string) {
     try {
-      await this.transporter.sendMail({
-        from: `"Hospital System" <${process.env.SMTP_USER}>`,
+      const result = await this.transporter.sendMail({
+        from: this.formatFrom(),
         to,
         subject,
         text,
         html: html || text,
       });
-    } catch (error) {
-      console.error('❌ Mail sending failed:', error);
+
+      this.logger.log(
+        `Mail sent to ${to} (messageId=${(result as any)?.messageId})`,
+      );
+      return result;
+    } catch (err) {
+      this.logger.error(
+        `Failed to send email to ${to}`,
+        (err as any).stack || err,
+      );
+      // Throw for flows that expect error; caller can catch and decide
       throw new InternalServerErrorException('Failed to send email');
     }
   }
 
-  /**
-   * Send Password Reset Email
-   */
-  async sendPasswordResetEmail(to: string, token: string): Promise<void> {
-    const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
-    const subject = 'Password Reset Request';
-    const text = `You requested a password reset. Use the link below:\n\n${resetUrl}`;
+  // Password reset email
+  async sendPasswordResetEmail(to: string, resetUrl: string) {
+    const subject = 'Password reset request';
+    const text = `Reset your password using this link: ${resetUrl}`;
     const html = `
-      <h3>Password Reset Request</h3>
-      <p>You requested a password reset. Click the link below:</p>
-      <a href="${resetUrl}" target="_blank">${resetUrl}</a>
-      <p>If you didn’t request this, please ignore this email.</p>
+      <p>You requested a password reset.</p>
+      <p><a href="${resetUrl}">Click here to reset your password</a> (link expires soon).</p>
+      <p>If you didn't request this, ignore this email.</p>
     `;
-    await this.sendMail(to, subject, text, html);
+    return this.sendMail(to, subject, text, html);
   }
 
-  /**
-   * Send Account Approval Email
-   */
-  async sendAccountApprovalEmail(to: string): Promise<void> {
-    const subject = 'Your Account Has Been Approved';
-    const text =
-      'Congratulations! Your account has been approved. You can now log in.';
+  // Welcome email to staff (include role and optional temp password notice)
+  async sendWelcomeEmail(
+    to: string,
+    name: string | undefined,
+    role: string,
+    maybePassword?: string,
+  ) {
+    const subject = `Welcome to the Clinic — ${role}`;
+    const text = `${name ?? ''}, your account has been created with role: ${role}.${maybePassword ? ` Temporary password: ${maybePassword}` : ''}`;
     const html = `
-      <h3>Account Approved</h3>
-      <p>Congratulations! Your account has been approved. You can now log in.</p>
+      <h3>Welcome ${name ?? ''}!</h3>
+      <p>Your account has been created with role: <strong>${role}</strong>.</p>
+      ${maybePassword ? `<p>Your temporary password is: <code>${maybePassword}</code>. Please change it on first login.</p>` : ''}
     `;
-    await this.sendMail(to, subject, text, html);
+    return this.sendMail(to, subject, text, html);
   }
 
-  /**
-   * Send Appointment Confirmation
-   */
+  // Account approval for patient
+  async sendAccountApprovalEmail(to: string, name?: string) {
+    const subject = 'Your Patient Account Has Been Approved';
+    const text = `Hello ${name ?? ''}, your patient account has been approved. You can now log in.`;
+    const html = `
+      <h3>Hello ${name ?? ''},</h3>
+      <p>Your patient account has been approved. You can now log in and manage appointments.</p>
+    `;
+    return this.sendMail(to, subject, text, html);
+  }
+
+  // Appointment confirmation
   async sendAppointmentConfirmation(
     to: string,
+    patientName: string | undefined,
     appointmentDate: string,
-  ): Promise<void> {
+    meta?: { doctorName?: string },
+  ) {
     const subject = 'Appointment Confirmation';
-    const text = `Your appointment has been scheduled for ${appointmentDate}.`;
+    const text = `Hello ${patientName ?? ''}, your appointment is scheduled for ${appointmentDate}${meta?.doctorName ? ` with Dr. ${meta.doctorName}` : ''}.`;
     const html = `
       <h3>Appointment Confirmed</h3>
-      <p>Your appointment has been scheduled for <strong>${appointmentDate}</strong>.</p>
+      <p>Hello ${patientName ?? ''},</p>
+      <p>Your appointment is scheduled for <strong>${appointmentDate}</strong>${meta?.doctorName ? ` with <strong>Dr. ${meta.doctorName}</strong>` : ''}.</p>
     `;
-    await this.sendMail(to, subject, text, html);
+    return this.sendMail(to, subject, text, html);
   }
 }
