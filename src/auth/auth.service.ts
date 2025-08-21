@@ -1,211 +1,269 @@
 import {
-  BadRequestException,
   Injectable,
-  InternalServerErrorException,
   UnauthorizedException,
+  BadRequestException,
+  ForbiddenException,
+  InternalServerErrorException,
 } from '@nestjs/common';
-import { PrismaService } from 'prisma/prisma.service';
-import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
-import * as bcrypt from 'bcryptjs';
-import * as nodemailer from 'nodemailer';
+import { PrismaService } from '../../prisma/prisma.service';
+import * as bcrypt from 'bcrypt';
 import { ConfigService } from '@nestjs/config';
-import { CreateUserDto } from '../users/dto/create-user.dto';
-import { ok } from 'src/common/helpers/api.response';
-import { IsEmail, IsString, MinLength } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
-
-/* ✅ Fixed LoginDto with validation */
-export class LoginDto {
-  @ApiProperty({ example: 'user@example.com' })
-  @IsEmail()
-  email: string;
-
-  @ApiProperty({ example: 'password123' })
-  @IsString()
-  @MinLength(6)
-  password: string;
-}
+import { v4 as uuidv4 } from 'uuid';
+import {
+  ForgotPasswordDto,
+  LoginDto,
+  RegisterUserDto,
+  ResetPasswordDto,
+} from './dto/auth.dto';
+import { MailService } from 'src/utils/mail.service';
 
 @Injectable()
 export class AuthService {
-  private transporter: nodemailer.Transporter;
-
   constructor(
-    private readonly usersService: UsersService,
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
-    private readonly configService: ConfigService,
-  ) {
-    this.transporter = nodemailer.createTransport({
-      host: this.configService.get<string>('SMTP_HOST'),
-      port: this.configService.get<number>('SMTP_PORT'),
-      secure: false,
-      auth: {
-        user: this.configService.get<string>('SMTP_USER'),
-        pass: this.configService.get<string>('SMTP_PASS'),
+    private readonly config: ConfigService,
+    private readonly mailService: MailService, // 👈 injected here
+  ) {}
+
+  /* ----------------- REGISTER (create staff users) ----------------- */
+  async registerUser(dto: RegisterUserDto) {
+    const exists = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+    });
+    if (exists) throw new BadRequestException('Email already in use');
+
+    const hashed = await bcrypt.hash(dto.password, 10);
+
+    const user = await this.prisma.user.create({
+      data: {
+        email: dto.email,
+        password: hashed,
+        firstName: dto.firstName,
+        lastName: dto.lastName,
+        role: dto.role,
       },
     });
+
+    const { password, ...rest } = user as any;
+    return rest;
   }
-
-  /* ----------------- EMAIL NOTIFICATION ----------------- */
-  async sendRegistrationNotification(newUser: { fullName: string; email: string; role: string }) {
-    const admins = await this.prisma.user.findMany({
-      where: { role: 'ADMIN', deletedAt: null },
-      select: { email: true },
-    });
-
-    if (admins.length === 0) return;
-
-    const htmlContent = `
-      <div style="font-family: Arial, sans-serif;">
-        <h2>New User Registration</h2>
-        <p>A new user has registered:</p>
-        <ul>
-          <li><b>Name:</b> ${newUser.fullName}</li>
-          <li><b>Email:</b> ${newUser.email}</li>
-          <li><b>Role:</b> ${newUser.role}</li>
-        </ul>
-        <a href="${this.configService.get<string>('DASHBOARD_URL', 'https://yourdomain.com/admin/dashboard')}">Go to Dashboard</a>
-      </div>
-    `;
-
-    for (const admin of admins) {
-      await this.transporter.sendMail({
-        from: this.configService.get<string>('EMAIL_FROM'),
-        to: admin.email,
-        subject: 'New User Registration Notification',
-        html: htmlContent,
-      });
-    }
-  }
-
-/* ----------------- REGISTER ----------------- */
-async register(dto: CreateUserDto) {
-  try {
-    const userResponse = await this.usersService.createUser(dto);
-    const user = userResponse?.data;
-
-    if (!user) {
-      throw new BadRequestException('User could not be created');
-    }
-
-    // Send notification but don't break signup if email fails
-    try {
-      await this.sendRegistrationNotification({
-        fullName: dto.fullName,
-        email: dto.email,
-        role: dto.role,
-      });
-    } catch (emailError) {
-      console.error('Failed to send registration email:', emailError);
-    }
-
-    // Issue tokens
-    const accessToken = this.generateAccessToken({ userId: user.id, role: user.role });
-    const refreshToken = await this.generateRefreshToken(user.id);
-
-    return ok('User registered successfully', {
-      accessToken,
-      refreshToken,
-      user: { id: user.id, email: user.email, role: user.role },
-    });
-  } catch (err) {
-    console.error('Registration error:', err);
-    throw new InternalServerErrorException('Registration failed');
-  }
-}
-
 
   /* ----------------- LOGIN ----------------- */
   async login(dto: LoginDto) {
-    const userResponse = await this.usersService.findUserByEmail(dto.email);
-    const user = userResponse.data;
-
+    const user = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+    });
     if (!user) throw new UnauthorizedException('Invalid credentials');
 
-    const isValidPassword = await bcrypt.compare(dto.password, user.password);
-    if (!isValidPassword) throw new UnauthorizedException('Invalid credentials');
+    const passwordMatches = await bcrypt.compare(dto.password, user.password);
+    if (!passwordMatches)
+      throw new UnauthorizedException('Invalid credentials');
 
-    // ✅ Update last login
+    const tokens = await this.getTokensAndStoreRefresh(
+      user.id,
+      user.email,
+      user.role,
+    );
+
     await this.prisma.user.update({
       where: { id: user.id },
       data: { lastLogin: new Date() },
     });
 
-    // ✅ Generate tokens
-    const accessToken = this.generateAccessToken({ userId: user.id, role: user.role });
-    const refreshToken = await this.generateRefreshToken(user.id);
-
-    return ok('Login successful', {
-      accessToken,
-      refreshToken,
-      user: { id: user.id, email: user.email, role: user.role },
-    });
-  }
-
-  /* ----------------- TOKEN HELPERS ----------------- */
-  private generateAccessToken(payload: { userId: string; role: string }) {
-    return this.jwtService.sign(payload, {
-      secret: this.configService.get<string>('JWT_ACCESS_SECRET'),
-      expiresIn: this.configService.get<string>('JWT_ACCESS_EXPIRES_IN'),
-    });
-  }
-
-  private async generateRefreshToken(userId: string) {
-    const refreshToken = this.jwtService.sign(
-      { userId },
-      {
-        secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
-        expiresIn: this.configService.get<string>('JWT_REFRESH_EXPIRES_IN'),
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
       },
-    );
-
-    await this.prisma.refreshToken.create({
-      data: {
-        token: refreshToken,
-        userId,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
-      },
-    });
-
-    return refreshToken;
-  }
-
-  /* ----------------- REFRESH ----------------- */
-  async refreshAccessToken(refreshToken: string) {
-    const storedToken = await this.prisma.refreshToken.findUnique({
-      where: { token: refreshToken },
-      include: { user: true },
-    });
-
-    if (!storedToken || storedToken.revoked || storedToken.expiresAt < new Date()) {
-      throw new UnauthorizedException('Invalid or expired refresh token');
-    }
-
-    try {
-      this.jwtService.verify(refreshToken, {
-        secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
-      });
-    } catch {
-      throw new UnauthorizedException('Invalid refresh token');
-    }
-
-    const accessToken = this.generateAccessToken({
-      userId: storedToken.user.id,
-      role: storedToken.user.role,
-    });
-
-    return ok('Token refreshed successfully', { accessToken });
+      ...tokens,
+    };
   }
 
   /* ----------------- LOGOUT ----------------- */
   async logout(refreshToken: string) {
+    try {
+      const payload: any = await this.jwtService.verifyAsync(refreshToken, {
+        secret: this.config.get<string>('JWT_REFRESH_SECRET'),
+      });
+
+      const jti = payload.jti;
+      const rt = await this.prisma.refreshToken.findUnique({
+        where: { id: jti },
+      });
+      if (!rt) throw new BadRequestException('Refresh token not found');
+
+      await this.prisma.refreshToken.update({
+        where: { id: jti },
+        data: { revoked: true },
+      });
+      return { message: 'Logged out' };
+    } catch {
+      return { message: 'Logged out' };
+    }
+  }
+
+  /* ----------------- REFRESH ----------------- */
+  async refreshToken(refreshToken: string) {
+    let payload: any;
+    try {
+      payload = await this.jwtService.verifyAsync(refreshToken, {
+        secret: this.config.get<string>('JWT_REFRESH_SECRET'),
+      });
+    } catch {
+      throw new ForbiddenException('Invalid refresh token');
+    }
+
+    const jti = payload.jti;
+    const userId = payload.sub;
+
+    const stored = await this.prisma.refreshToken.findUnique({
+      where: { id: jti },
+    });
+    if (!stored || stored.revoked)
+      throw new ForbiddenException('Refresh token revoked');
+
+    if (stored.expiresAt < new Date()) {
+      await this.prisma.refreshToken.update({
+        where: { id: stored.id },
+        data: { revoked: true },
+      });
+      throw new ForbiddenException('Refresh token expired');
+    }
+
+    const isMatch = await bcrypt.compare(refreshToken, stored.token);
+    if (!isMatch) {
+      await this.prisma.refreshToken.update({
+        where: { id: stored.id },
+        data: { revoked: true },
+      });
+      throw new ForbiddenException('Invalid refresh token');
+    }
+
     await this.prisma.refreshToken.update({
-      where: { token: refreshToken },
+      where: { id: stored.id },
       data: { revoked: true },
     });
 
-    return ok('Logged out successfully', {});
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new ForbiddenException('User not found');
+
+    return this.getTokensAndStoreRefresh(user.id, user.email, user.role);
+  }
+
+  /* ----------------- FORGOT PASSWORD ----------------- */
+  async forgotPassword(dto: ForgotPasswordDto) {
+    const user = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+    });
+    if (!user) {
+      return { message: 'If an account exists, a reset link was sent.' };
+    }
+
+    const resetToken = await this.jwtService.signAsync(
+      { sub: user.id },
+      { secret: this.config.get<string>('JWT_RESET_SECRET'), expiresIn: '1h' },
+    );
+
+    const resetUrl = `${this.config.get<string>('FRONTEND_URL')}/reset-password?token=${resetToken}`;
+
+    try {
+      await this.mailService.sendMail(
+        user.email,
+        'Password reset request',
+        `Reset your password here: ${resetUrl}`,
+        `
+          <p>Hello ${user.firstName ?? ''},</p>
+          <p>You requested a password reset. Click the link below to reset your password. This link expires in 1 hour.</p>
+          <p><a href="${resetUrl}">Reset password</a></p>
+          <p>If you didn't request this, please ignore this email.</p>
+        `,
+      );
+    } catch (err) {
+      console.error('❌ Failed to send password reset email', err);
+      throw new InternalServerErrorException('Failed to send reset email');
+    }
+
+    return { message: 'If an account exists, a reset link was sent.' };
+  }
+
+  /* ----------------- RESET PASSWORD ----------------- */
+  async resetPassword(dto: ResetPasswordDto) {
+    let payload: any;
+    try {
+      payload = await this.jwtService.verifyAsync(dto.token, {
+        secret: this.config.get<string>('JWT_RESET_SECRET'),
+      });
+    } catch {
+      throw new ForbiddenException('Invalid or expired reset token');
+    }
+
+    const userId = payload.sub;
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new BadRequestException('User not found');
+
+    const hashed = await bcrypt.hash(dto.newPassword, 10);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { password: hashed },
+    });
+
+    return { message: 'Password reset successful' };
+  }
+
+  /* ----------------- Helper ----------------- */
+  private async getTokensAndStoreRefresh(
+    userId: string,
+    email: string,
+    role: any,
+  ) {
+    const jti = uuidv4();
+
+    const accessPayload = { sub: userId, email, role };
+    const refreshPayload = { sub: userId, email, role, jti };
+
+    const accessToken = await this.jwtService.signAsync(accessPayload, {
+      secret: this.config.get<string>('JWT_ACCESS_SECRET'),
+      expiresIn: this.config.get<string>('JWT_ACCESS_EXPIRES') || '15m',
+    });
+
+    const refreshToken = await this.jwtService.signAsync(refreshPayload, {
+      secret: this.config.get<string>('JWT_REFRESH_SECRET'),
+      expiresIn: this.config.get<string>('JWT_REFRESH_EXPIRES') || '7d',
+    });
+
+    const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
+    const expiresAt = new Date(
+      Date.now() +
+        this.parseDurationToMs(
+          this.config.get<string>('JWT_REFRESH_EXPIRES') || '7d',
+        ),
+    );
+
+    await this.prisma.refreshToken.create({
+      data: {
+        id: jti,
+        token: hashedRefreshToken,
+        userId,
+        revoked: false,
+        expiresAt,
+      },
+    });
+
+    return { accessToken, refreshToken };
+  }
+
+  private parseDurationToMs(t: string) {
+    if (!t) return 7 * 24 * 60 * 60 * 1000;
+    const num = parseInt(t.replace(/\D/g, ''), 10);
+    if (t.endsWith('d')) return num * 24 * 60 * 60 * 1000;
+    if (t.endsWith('h')) return num * 60 * 60 * 1000;
+    if (t.endsWith('m')) return num * 60 * 1000;
+    if (t.endsWith('s')) return num * 1000;
+    return num * 1000;
   }
 }

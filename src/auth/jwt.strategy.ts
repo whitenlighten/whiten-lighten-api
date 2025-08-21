@@ -1,32 +1,29 @@
-import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+// src/modules/auth/jwt.strategy.ts
+import { Injectable } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 
+/**
+ * JWT strategy validates access tokens (short-lived).
+ * We expect the access token to contain sub (userId), email and role.
+ */
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  private readonly logger = new Logger(JwtStrategy.name);
-
-  constructor(private configService: ConfigService) {
+  constructor(config: ConfigService) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: configService.get<string>('JWT_ACCESS_SECRET', 'default-secret'), // Fallback for testing
+      secretOrKey: config.get<string>('JWT_ACCESS_SECRET') ?? 'default_secret',
     });
-    const secret = configService.get<string>('JWT_ACCESS_SECRET');
-    if (!secret || secret === 'your-secure-jwt-secret-key-here') {
-      this.logger.error('JWT_ACCESS_SECRET is not defined or is a placeholder in environment variables');
-      throw new Error('JWT_ACCESS_SECRET is not properly configured');
-    }
-    this.logger.log('JwtStrategy initialized successfully');
   }
 
-  async validate(payload: { userId: string; role: string }) {
-    if (!payload.userId || !payload.role) {
-      this.logger.error('Invalid token payload');
-      throw new UnauthorizedException('Invalid token payload');
-    }
-    this.logger.log(`Validated payload: userId=${payload.userId}, role=${payload.role}`);
-    return { userId: payload.userId, role: payload.role };
+  async validate(payload: any) {
+    // The returned object is attached to request.user
+    return {
+      userId: payload.sub,
+      email: payload.email,
+      role: payload.role,
+    };
   }
 }

@@ -1,35 +1,30 @@
+// src/modules/auth/auth.module.ts
 import { Module } from '@nestjs/common';
-import { AuthService } from './auth.service';
-import { AuthController } from './auth.controller';
-import { UsersModule } from '../users/users.module';
 import { JwtModule } from '@nestjs/jwt';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { AuthService } from './auth.service';
+import { PrismaService } from '../../prisma/prisma.service';
+import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
-import { PrismaModule } from 'prisma/prisma.module';
-
+import { ConfigModule, ConfigService } from '@nestjs/config';
 
 @Module({
   imports: [
-    UsersModule,
-    PrismaModule,
     ConfigModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
-      useFactory: async (configService: ConfigService) => {
-        const secret = configService.get<string>('JWT_ACCESS_SECRET');
-        if (!secret) {
-          throw new Error('JWT_ACCESS_SECRET is not defined');
-        }
-        return {
-          global: true,
-          secret,
-          signOptions: { expiresIn: configService.get<string>('JWT_ACCESS_EXPIRES_IN') },
-        };
-      },
       inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        // Note: we use sign/verify methods in service with explicit secrets, so
+        // this registration is minimal. But registering here is useful for JwtService injection.
+        secret: config.get<string>('JWT_ACCESS_SECRET'),
+        signOptions: {
+          expiresIn: config.get<string>('JWT_ACCESS_EXPIRES') || '15m',
+        },
+      }),
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
+  providers: [AuthService, PrismaService, JwtStrategy],
+  exports: [AuthService],
 })
 export class AuthModule {}
