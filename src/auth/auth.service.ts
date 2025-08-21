@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  InternalServerErrorException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { PrismaService } from 'prisma/prisma.service';
@@ -81,28 +82,38 @@ export class AuthService {
 
 /* ----------------- REGISTER ----------------- */
 async register(dto: CreateUserDto) {
-  const userResponse = await this.usersService.createUser(dto);
-  const user = userResponse?.data;
+  try {
+    const userResponse = await this.usersService.createUser(dto);
+    const user = userResponse?.data;
 
-  if (!user) {
-    throw new BadRequestException('User could not be created');
+    if (!user) {
+      throw new BadRequestException('User could not be created');
+    }
+
+    // Send notification but don't break signup if email fails
+    try {
+      await this.sendRegistrationNotification({
+        fullName: dto.fullName,
+        email: dto.email,
+        role: dto.role,
+      });
+    } catch (emailError) {
+      console.error('Failed to send registration email:', emailError);
+    }
+
+    // Issue tokens
+    const accessToken = this.generateAccessToken({ userId: user.id, role: user.role });
+    const refreshToken = await this.generateRefreshToken(user.id);
+
+    return ok('User registered successfully', {
+      accessToken,
+      refreshToken,
+      user: { id: user.id, email: user.email, role: user.role },
+    });
+  } catch (err) {
+    console.error('Registration error:', err);
+    throw new InternalServerErrorException('Registration failed');
   }
-
-  await this.sendRegistrationNotification({
-    fullName: dto.fullName,
-    email: dto.email,
-    role: dto.role,
-  });
-
-  // ✅ Issue tokens immediately after signup
-  const accessToken = this.generateAccessToken({ userId: user.id, role: user.role });
-  const refreshToken = await this.generateRefreshToken(user.id);
-
-  return ok('User registered successfully', {
-    accessToken,
-    refreshToken,
-    user: { id: user.id, email: user.email, role: user.role },
-  });
 }
 
 
