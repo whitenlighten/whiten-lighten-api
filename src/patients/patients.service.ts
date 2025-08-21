@@ -32,9 +32,67 @@ export class PatientService {
     this.auditLogger = new AuditLogger(this.prisma);
   }
 
-  // ==========================
-  // Existing Patient Methods
-  // ==========================
+ 
+    // PreRegistration Methods
+ 
+  async createPreRegistration(dto: CreatePatientDto) {
+    try {
+
+      /// function to reg uniq
+      const generatePreRegCode = () => 'Client' + Date.now() + Math.floor(Math.random() * 1000);
+      console.log(generatePreRegCode());
+
+      const preReg = await this.prisma.preRegistration.create({
+        data: {
+          firstName: dto.firstName,
+          lastName: dto.lastName,
+          email: dto.email.toLowerCase(),
+          phone: dto.phone,
+          dateOfBirth: dto.dateOfBirth,
+          preRegCode: generatePreRegCode(),
+        },
+      });
+      return ok('Pre-registration created successfully', preReg);
+    } catch (error) {
+      console.error('createPreRegistration error:', error);
+      throw new InternalServerErrorException('Error creating pre-registration');
+    }
+  }
+
+
+  async promotePreRegistration(preRegId: string, staffId: string) {
+    try {
+      const preReg = await this.prisma.preRegistration.findUnique({ where: { id: preRegId } });
+      if (!preReg) throw new NotFoundException(`Pre-registration not found`);
+
+      const patient = await this.prisma.patient.create({
+        data: {
+          firstName: preReg.firstName,
+          lastName: preReg.lastName,
+          email: preReg.email,
+          phone: preReg.phone,
+          dateOfBirth: preReg.dateOfBirth,
+          // Optionally add default values for other required fields
+          gender: 'OTHER',
+          address: '',
+          emergencyContact: {},
+          preRegistrationId: preReg.id,
+        },
+        select: patientSelect,
+      });
+
+      // Optionally: log the promotion action
+      // await this.auditLogService.logAction(staffId, 'PROMOTE_PRE_REGISTRATION', 'Patient', patient.id, { preRegistrationId: preReg.id });
+
+      return ok('Pre-registration promoted to patient successfully', patient);
+    } catch (error) {
+      console.error('promotePreRegistration error:', error);
+      if (error instanceof BadRequestException || error instanceof NotFoundException) throw error;
+      throw new InternalServerErrorException('Error promoting pre-registration');
+    }
+  }
+
+
   async createPatient(dto: CreatePatientDto) {
     try {
       const patient = await this.prisma.patient.create({
@@ -186,64 +244,5 @@ export class PatientService {
     }
   }
 
-  // ==========================
-  // PreRegistration Methods
-  // ==========================
-
-  async createPreRegistration(dto: CreatePatientDto) {
-    try {
-
-      const generatePreRegCode = () => 'PRE' + Date.now();
-
-      const preReg = await this.prisma.preRegistration.create({
-        data: {
-          firstName: dto.firstName,
-          lastName: dto.lastName,
-          email: dto.email.toLowerCase(),
-          phone: dto.phone,
-          dateOfBirth: dto.dateOfBirth,
-          preRegCode: generatePreRegCode(),
-        },
-      });
-      return ok('Pre-registration created successfully', preReg);
-    } catch (error) {
-      console.error('createPreRegistration error:', error);
-      throw new InternalServerErrorException('Error creating pre-registration');
-    }
-  }
-
-  // ==========================
-  // Promotion from PreRegistration to Patient
-  // ==========================
-  async promotePreRegistration(preRegId: string, staffId: string) {
-    try {
-      const preReg = await this.prisma.preRegistration.findUnique({ where: { id: preRegId } });
-      if (!preReg) throw new NotFoundException(`Pre-registration not found`);
-
-      const patient = await this.prisma.patient.create({
-        data: {
-          firstName: preReg.firstName,
-          lastName: preReg.lastName,
-          email: preReg.email,
-          phone: preReg.phone,
-          dateOfBirth: preReg.dateOfBirth,
-          // Optionally add default values for other required fields
-          gender: 'OTHER',
-          address: '',
-          emergencyContact: {},
-          preRegistrationId: preReg.id,
-        },
-        select: patientSelect,
-      });
-
-      // Optionally: log the promotion action
-      // await this.auditLogService.logAction(staffId, 'PROMOTE_PRE_REGISTRATION', 'Patient', patient.id, { preRegistrationId: preReg.id });
-
-      return ok('Pre-registration promoted to patient successfully', patient);
-    } catch (error) {
-      console.error('promotePreRegistration error:', error);
-      if (error instanceof BadRequestException || error instanceof NotFoundException) throw error;
-      throw new InternalServerErrorException('Error promoting pre-registration');
-    }
-  }
+ 
 }

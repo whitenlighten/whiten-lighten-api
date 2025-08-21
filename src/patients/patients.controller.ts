@@ -1,4 +1,3 @@
-// src/patients/patients.controller.ts
 import {
   Controller,
   Get,
@@ -6,14 +5,16 @@ import {
   Body,
   Param,
   Put,
-  Req,
   UseGuards,
+  Delete,
+  Query,
 } from '@nestjs/common';
 import {
   ApiResponse,
   ApiTags,
   ApiBearerAuth,
   ApiBody,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { PatientService } from './patients.service';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
@@ -30,8 +31,40 @@ import { PatientResponseDto } from './dto/patient-rsponse.dto';
 export class PatientController {
   constructor(private readonly patientService: PatientService) {}
 
+  /**
+   * Create a new patient
+   */
+
+
+
   @Post()
-  @ApiBody({ type: CreatePatientDto }) // ✅ ensures Swagger shows request DTO
+  @ApiBody({ type: CreatePatientDto })
+  @ApiResponse({
+    status: 201,
+    description: 'Patient created successfully',
+    type: PatientResponseDto,
+  })
+  async preReg(@Body() createPatientDto: CreatePatientDto) {
+    return this.patientService.createPreRegistration(createPatientDto);
+  }
+
+  @Post(':preRegId/promote')
+  @ApiResponse({
+    status: 200,
+    description: 'Pre-registration promoted successfully',
+    type: PatientResponseDto,
+  })
+  async promotePreRegistration(
+    @Param('preRegId') preRegId: string,
+    @Body('staffId') staffId: string,
+  ) {
+    return this.patientService.promotePreRegistration(preRegId, staffId);
+  }
+
+
+  
+  @Post()
+  @ApiBody({ type: CreatePatientDto })
   @ApiResponse({
     status: 201,
     description: 'Patient created successfully',
@@ -41,16 +74,24 @@ export class PatientController {
     return this.patientService.createPatient(createPatientDto);
   }
 
+  /**
+   * Get all patients with optional pagination
+   */
   @Get()
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiResponse({
     status: 200,
     description: 'List of patients',
     type: [PatientResponseDto],
   })
-  async findAll() {
-    return this.patientService.getAllPatients();
+  async findAll(@Query('page') page?: number, @Query('limit') limit?: number) {
+    return this.patientService.getAllPatients(page, limit);
   }
 
+  /**
+   * Get a patient by ID
+   */
   @Get(':id')
   @ApiResponse({
     status: 200,
@@ -61,8 +102,11 @@ export class PatientController {
     return this.patientService.getPatientById(id);
   }
 
+  /**
+   * Update an existing patient
+   */
   @Put(':id')
-  @ApiBody({ type: UpdatePatientDto }) // ✅ ensures Swagger shows update DTO
+  @ApiBody({ type: UpdatePatientDto })
   @ApiResponse({
     status: 200,
     description: 'Patient updated successfully',
@@ -75,20 +119,16 @@ export class PatientController {
     return this.patientService.updatePatient(id, updatePatientDto);
   }
 
-  @Post('pre-registration/:id/promote')
+  /**
+   * Soft delete a patient
+   */
+  @Delete(':id')
   @ApiResponse({
-    status: 201,
-    description: 'Pre-registration promoted successfully',
-    type: PatientResponseDto,
+    status: 200,
+    description: 'Patient deleted successfully',
   })
-  async promotePreRegistration(
-    @Param('id') preRegistrationId: string,
-    @Req() req: any,
-  ) {
-    const staffId = req.user.id; // Assuming JWT adds `user` to request
-    return this.patientService.promotePreRegistration(
-      preRegistrationId,
-      staffId,
-    );
-  }
+  async remove(@Param('id') id: string) {
+    return this.patientService.deletePatient(id);
+  
+}
 }
