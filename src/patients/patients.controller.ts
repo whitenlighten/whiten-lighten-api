@@ -37,7 +37,7 @@ export class PatientController {
 
 
 
-  @Post()
+  @Post('pre-registration')
   @ApiBody({ type: CreatePatientDto })
   @ApiResponse({
     status: 201,
@@ -48,7 +48,7 @@ export class PatientController {
     return this.patientService.createPreRegistration(createPatientDto);
   }
 
-  @Post(':preRegId/promote')
+  @Post(':promoteReg')
   @ApiResponse({
     status: 200,
     description: 'Pre-registration promoted successfully',
@@ -85,7 +85,7 @@ export class PatientController {
     description: 'List of patients',
     type: [PatientResponseDto],
   })
-  async findAll(@Query('page') page?: number, @Query('limit') limit?: number) {
+  async getAllPatient(@Query('page') page?: number, @Query('limit') limit?: number) {
     return this.patientService.getAllPatients(page, limit);
   }
 
