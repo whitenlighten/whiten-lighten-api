@@ -42,16 +42,17 @@ export class PatientService {
       const generatePreRegCode = () => 'Client' + Date.now() + Math.floor(Math.random() * 1000);
       console.log(generatePreRegCode());
 
-      const preReg = await this.prisma.preRegistration.create({
-        data: {
-          firstName: dto.firstName,
-          lastName: dto.lastName,
-          email: dto.email.toLowerCase(),
-          phone: dto.phone,
-          dateOfBirth: dto.dateOfBirth,
-          preRegCode: generatePreRegCode(),
-        },
-      });
+       const preReg = await this.prisma.preRegistration.create({
+      data: {
+        firstName: dto.firstName,
+        lastName: dto.lastName,
+        email: dto.email ? dto.email.toLowerCase() : '', // prevent crash
+        phone: dto.phone,
+        dateOfBirth: new Date(dto.dateOfBirth), // ✅ ensure DateTime
+        address: dto.address ?? null,           // optional safe handling
+        preRegCode: generatePreRegCode(),
+      },
+    });
       return ok('Pre-registration created successfully', preReg);
     } catch (error) {
       console.error('createPreRegistration error:', error);
