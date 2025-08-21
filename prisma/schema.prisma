@@ -23,15 +23,18 @@ model User {
   password   String
   firstName  String?
   lastName   String?
+  phone      String?
   role       Role
   isActive   Boolean   @default(true)
   emailVerified Boolean @default(false)
   lastLogin  DateTime?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
 
   // relation
   refreshTokens RefreshToken[]
+  auditLogs     AuditLog[] @relation("UserAuditLogs")
 
   @@index([email])
 }
@@ -46,4 +49,16 @@ model RefreshToken {
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  action     String
+  resource   String
+  resourceId String?
+  changes    Json?
+  createdAt  DateTime @default(now())
+
+  user User? @relation("UserAuditLogs", fields: [userId], references: [id])
 }
