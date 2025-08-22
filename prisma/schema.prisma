@@ -144,6 +144,8 @@ model Patient {
   invoices      Invoice[]
   Appointment   Appointment[]
   userId        String?
+
+  NoteSuggestion NoteSuggestion[]
 }
 
 /**
@@ -153,24 +155,27 @@ model Patient {
 model ClinicalNote {
   id String @id @default(cuid())
 
-  // Link to Patient
   patientId String
   patient   Patient @relation(fields: [patientId], references: [id])
 
-  // Nurse (creator)
-  createdById String
-  createdBy   User   @relation("NurseCreatedNotes", fields: [createdById], references: [id])
+  createdById String  // always a Doctor/Admin/Superadmin
+  createdBy   User    @relation(fields: [createdById], references: [id])
 
-  // Doctor (approver)
-  approvedById String?
-  approvedBy   User?   @relation("DoctorApprovedNotes", fields: [approvedById], references: [id])
-
-  observations String // Nurse’s notes
-  doctorNotes  String? // Doctor’s final notes / diagnosis
-  status       NoteStatus @default(PENDING)
+  observations String?   // nurse's original input (copied from suggestion if applicable)
+  doctorNotes  String?   // doctor’s additional notes/diagnosis
+  treatmentPlan String?  // optional structured field
+  status       NoteStatus @default(APPROVED)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  visitId String?
+  visit   Visit? @relation(fields: [visitId], references: [id])
+
+  approvedById String?
+  approvedBy   User? @relation("PatientApprovedBy", fields: [approvedById], references: [id])
+
+  User User[] @relation("DoctorApprovedNotes")
 }
 
 /**
@@ -184,6 +189,8 @@ model Visit {
   visitDate DateTime @default(now())
   reason    String?
   notes     String?
+
+  ClinicalNote ClinicalNote[]
 }
 
 /**
@@ -220,12 +227,16 @@ model User {
   refreshTokens RefreshToken[]
   auditLogs     AuditLog[]     @relation("UserAuditLogs")
   patients      Patient[]      @relation("RegisteredPatients") // Patients registered by staff
-  nurseNotes    ClinicalNote[] @relation("NurseCreatedNotes") // Notes created as Nurse
+  nurseNotes    NoteSuggestion[] @relation("NurseCreatedNotes") // Notes created as Nurse
   doctorNotes   ClinicalNote[] @relation("DoctorApprovedNotes") // Notes approved as Doctor
   Appointment   Appointment[]
   Patient       Patient[]
+  createdClinicalNotes ClinicalNote[] @relation(fields: [], references: [])
 
   @@index([email])
+  createdNoteSuggestions NoteSuggestion[] @relation("NoteSuggestionCreatedBy")
+  approvedNoteSuggestions NoteSuggestion[] @relation("NoteSuggestionApprovedBy")
+  ClinicalNote ClinicalNote[] @relation("PatientApprovedBy")
 }
 
 model RefreshToken {
@@ -270,4 +281,24 @@ model PatientCounter {
   id        Int      @id @default(1) // always one row
   value     Int      @default(0)
   updatedAt DateTime @updatedAt
+}
+
+model NoteSuggestion {
+  id          String   @id @default(cuid())
+  patientId   String
+  patient     Patient  @relation(fields: [patientId], references: [id])
+
+  createdById String   // nurse ID
+  createdBy   User     @relation("NoteSuggestionCreatedBy", fields: [createdById], references: [id])
+
+  content     String
+  status      NoteStatus @default(PENDING)
+
+  approvedById String?
+  approvedBy   User?     @relation("NoteSuggestionApprovedBy", fields: [approvedById], references: [id])
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  User User[] @relation("NurseCreatedNotes")
 }

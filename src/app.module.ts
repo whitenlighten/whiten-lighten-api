@@ -9,6 +9,7 @@ import { RolesGuard } from './auth/guards/roles.guard';
 import { UsersModule } from './users/users.module';
 import { PatientsModule } from './patients/patients.module';
 import { AppointmentsModule } from './appointments/appointments.module';
+import { ClinicalNotesModule } from './clinical-notes/clinical-notes.module';
 
 @Global() // 👈 makes MailService available app-wide
 @Module({
@@ -29,6 +30,7 @@ export class MailModule {}
     UsersModule,
     PatientsModule,
     AppointmentsModule,
+    ClinicalNotesModule,
   ],
   providers: [
     {
