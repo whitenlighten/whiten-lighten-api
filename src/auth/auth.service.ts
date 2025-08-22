@@ -51,7 +51,7 @@ export class AuthService {
         user.email,
         `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim(),
         user.role,
-        undefined,
+        dto.password, // send plain password only at creation
       );
     } catch (err) {
       this.logger?.warn(`Welcome email failed for ${user.email}.`, (err as any).message || err);

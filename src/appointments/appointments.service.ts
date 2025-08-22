@@ -49,10 +49,19 @@ export class AppointmentsService {
       });
 
       // Step 3: Send mail to doctor and patient
+      // Split date and time for better readability
+      const appointmentDate = new Date(dto.date);
+      const dateStr = appointmentDate.toLocaleDateString();
+      const timeStr = appointmentDate.toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+
+      // Send confirmation email to patient
       await this.mailService.sendAppointmentNotification(
         patient.email,
         'Appointment Booked',
-        `Your appointment with doctor ${dto.doctorId} is booked for ${dto.date}.`,
+        `Dear ${patient.firstName},\n\nYour appointment${dto.doctorId ? ` with doctor ${dto.doctorId}` : ''} is booked for ${dateStr} at ${timeStr}.\n\nYour Patient ID is: ${patient.patientId}\nPlease display this ID to the frontdesk for approval.\n\nThank you for choosing us!`,
       );
       // Send notification to all frontdesk users (do not await)
       this.prisma.user.findMany({ where: { role: 'FRONTDESK' } }).then((frontdesks) => {
@@ -61,7 +70,7 @@ export class AppointmentsService {
             this.mailService.sendAppointmentNotification(
               fd.email,
               'New Appointment',
-              `A new appointment has been booked by ${patient.firstName} ${patient.lastName} on ${dto.date}.`,
+              `A new appointment has been booked by ${patient.firstName} ${patient.lastName} for ${dateStr} at ${timeStr}.`,
             );
           }
         });
@@ -73,17 +82,19 @@ export class AppointmentsService {
           if (doctor?.email) {
             this.mailService.sendAppointmentNotification(
               doctor.email,
-              'New Appointment',
-              `You have a new appointment with ${patient.firstName} ${patient.lastName} on ${dto.date}.`,
+              'New Appointment Booked',
+              `Dear Dr. ${doctor.firstName} ${doctor.lastName},\n\n` +
+                `You have a new appointment scheduled with ${patient.firstName} ${patient.lastName}.\n\n` +
+                `Date: ${dateStr}\nTime: ${timeStr}\nService: ${dto.service}\n` +
+                (dto.reason ? `Reason: ${dto.reason}\n` : '') +
+                `\nPlease log in to your dashboard for more details.\n\nThank you!`,
             );
           }
         });
       }
 
-    return appointment;
-
-
-  }
+      return appointment;
+    }
 
   async approve(id: string) {
     return this.updateStatus(id, AppointmentStatus.CONFIRMED);
