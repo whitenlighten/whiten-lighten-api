@@ -1,49 +1,134 @@
 // prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-generator client {
-  provider = "prisma-client-js"
-}
-
+// Enums
 enum Role {
   SUPERADMIN
   ADMIN
   DOCTOR
   NURSE
   FRONTDESK
-  PATIENT
 }
 
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+  NO_SHOW
+}
+
+enum AppointmentSource {
+  SELF
+  STAFF
+}
+
+// New Enum for Patient Status
+enum PatientStatus {
+  PENDING
+  APPROVED
+  // Add other statuses as needed
+}
+
+// Models
 model User {
-  id         String    @id @default(uuid())
-  email      String    @unique
-  password   String
-  firstName  String?
-  lastName   String?
-  role       Role
-  isActive   Boolean   @default(true)
-  emailVerified Boolean @default(false)
-  lastLogin  DateTime?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  id                    String         @id @default(uuid())
+  email                 String         @unique
+  password              String
+  firstName             String?
+  lastName              String?
+  lastLogin             DateTime?
+  role                  Role
+  isActive              Boolean        @default(true)
+  emailVerified        Boolean        @default(false) // Added
+  deletedAt             DateTime? // Added
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
 
-  // relation
-  refreshTokens RefreshToken[]
-
-  @@index([email])
+  // Relations
+  refreshToken          RefreshToken?
+  appointmentsAsDoctor  Appointment[]  @relation("ApptDoctor")
+  appointmentsCreated   Appointment[]  @relation("ApptCreatedBy")
+  clinicalNotes         ClinicalNote[]
 }
 
-model RefreshToken {
-  // We'll use the id as the token record identifier (jti)
-  id        String   @id @default(uuid())
-  token     String   // store hashed token
-  userId    String
-  revoked   Boolean  @default(false)
-  expiresAt DateTime
-  createdAt DateTime @default(now())
+model Patient {
+  id                    String        @id @default(uuid())
+  firstName             String?
+  lastName              String?
+  email                 String        @unique
+  phone                 String        @unique
+  dateOfBirth           DateTime?
+  gender                String?
+  address               String?
+  allergies             String[]      @default([])
+  medicalConditions     String[]      @default([])
+  emergencyContact      String?
+  
+  patientCode           String        @unique
+  status                PatientStatus @default(PENDING)
+  isPartial             Boolean       @default(true)
+  isApproved            Boolean       @default(false)
+  deletedAt             DateTime?
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  // Relations
+  appointments          Appointment[]
+  clinicalNotes         ClinicalNote[]
+}
+
+model ClinicalNote {
+  id                    String    @id @default(uuid())
+  patientId             String
+  createdById           String
+  note                  String
+
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  patient               Patient   @relation(fields: [patientId], references: [id])
+  createdBy             User      @relation(fields: [createdById], references: [id])
+}
+
+model Appointment {
+  id                    String            @id @default(uuid())
+  patientId             String
+  doctorId              String?
+  createdById           String?
+  scheduledAt           DateTime
+  reason                String?
+  status                AppointmentStatus @default(PENDING)
+  source                AppointmentSource @default(SELF)
+  cancellationReason    String?
+  rescheduledFromId     String?
+
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+
+  patient               Patient           @relation(fields: [patientId], references: [id])
+  doctor                User?             @relation("ApptDoctor", fields: [doctorId], references: [id])
+  createdBy             User?             @relation("ApptCreatedBy", fields: [createdById], references: [id])
+  rescheduledFrom       Appointment?      @relation("ApptResched", fields: [rescheduledFromId], references: [id])
+  reschedules           Appointment[]     @relation("ApptResched")
+}
+
+// New Model for Refresh Tokens
+model RefreshToken {
+  id          String    @id @default(uuid())
+  hashedToken String    @unique
+  userId      String    @unique
+  user        User      @relation(fields: [userId], references: [id])
+  revoked     Boolean   @default(false) // Added
+  expiresAt   DateTime  // Added
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }

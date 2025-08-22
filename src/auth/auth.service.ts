@@ -135,7 +135,7 @@ export class AuthService {
       throw new ForbiddenException('Refresh token expired');
     }
 
-    const isMatch = await bcrypt.compare(refreshToken, stored.token);
+    const isMatch = await bcrypt.compare(refreshToken, stored.hashedToken);
     if (!isMatch) {
       await this.prisma.refreshToken.update({
         where: { id: stored.id },
@@ -247,7 +247,7 @@ export class AuthService {
     await this.prisma.refreshToken.create({
       data: {
         id: jti,
-        token: hashedRefreshToken,
+        hashedToken: hashedRefreshToken,
         userId,
         revoked: false,
         expiresAt,

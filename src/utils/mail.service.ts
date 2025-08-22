@@ -7,6 +7,14 @@ import {
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 
+// Interface must be defined outside the class
+interface MailData {
+  to: string;
+  subject: string;
+  text: string;
+  html?: string;
+}
+
 @Injectable()
 export class MailService {
   private readonly logger = new Logger(MailService.name);
@@ -27,13 +35,11 @@ export class MailService {
         pass: this.config.get<string>('SMTP_PASS'),
       },
       tls: {
-        // for dev, if needed; in prod prefer valid certs
         rejectUnauthorized:
           this.config.get<string>('SMTP_REJECT_UNAUTHORIZED') !== 'false',
       },
     });
 
-    // verify transporter early so app fails fast if SMTP unreachable
     this.transporter.verify((err, success) => {
       if (err) {
         this.logger.error('SMTP verification failed', err);
@@ -54,7 +60,7 @@ export class MailService {
     );
   }
 
-  // Generic send
+  // This is the generic send method, it accepts individual arguments
   async sendMail(to: string, subject: string, text: string, html?: string) {
     try {
       const result = await this.transporter.sendMail({
@@ -74,12 +80,11 @@ export class MailService {
         `Failed to send email to ${to}`,
         (err as any).stack || err,
       );
-      // Throw for flows that expect error; caller can catch and decide
       throw new InternalServerErrorException('Failed to send email');
     }
   }
 
-  // Password reset email
+  // This method is correctly using the generic sendMail
   async sendPasswordResetEmail(to: string, resetUrl: string) {
     const subject = 'Password reset request';
     const text = `Reset your password using this link: ${resetUrl}`;
@@ -91,7 +96,7 @@ export class MailService {
     return this.sendMail(to, subject, text, html);
   }
 
-  // Welcome email to staff (include role and optional temp password notice)
+  // This method is correctly using the generic sendMail
   async sendWelcomeEmail(
     to: string,
     name: string | undefined,
@@ -108,7 +113,7 @@ export class MailService {
     return this.sendMail(to, subject, text, html);
   }
 
-  // Account approval for patient
+  // This method is correctly using the generic sendMail
   async sendAccountApprovalEmail(to: string, name?: string) {
     const subject = 'Your Patient Account Has Been Approved';
     const text = `Hello ${name ?? ''}, your patient account has been approved. You can now log in.`;
@@ -119,7 +124,7 @@ export class MailService {
     return this.sendMail(to, subject, text, html);
   }
 
-  // Appointment confirmation
+  // This method is correctly using the generic sendMail
   async sendAppointmentConfirmation(
     to: string,
     patientName: string | undefined,
