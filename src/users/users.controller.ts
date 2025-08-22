@@ -34,7 +34,7 @@ export class UsersController {
   })
   async create(@Body() dto: CreateUserDto, @GetUser() user: any) {
     const callerId = user.userId;
-    const callerRole = user.role as Role;
+    const callerRole = user.role as any;
     return this.users.create(dto, callerId, callerRole);
   }
 
@@ -60,7 +60,7 @@ export class UsersController {
   @ApiOperation({ summary: 'Update user profile. Self or admin can update.' })
   async update(@Param('id') id: string, @Body() dto: UpdateUserDto, @GetUser() user: any) {
     const callerId = user.userId;
-    const callerRole = user.role as Role;
+    const callerRole = user.role as any;
     return this.users.update(id, dto, callerId, callerRole);
   }
 
@@ -73,7 +73,7 @@ export class UsersController {
   })
   async changeRole(@Param('id') id: string, @Body() dto: ChangeRoleDto, @GetUser() user: any) {
     const callerId = user.userId;
-    const callerRole = user.role as Role;
+    const callerRole = user.role as any;
     return this.users.changeRole(id, dto, callerId, callerRole);
   }
 
@@ -85,7 +85,7 @@ export class UsersController {
   })
   async deactivate(@Param('id') id: string, @GetUser() user: any) {
     const callerId = user.userId;
-    const callerRole = user.role as Role;
+    const callerRole = user.role as any;
     return this.users.softDelete(id, callerId, callerRole);
   }
 
@@ -95,7 +95,7 @@ export class UsersController {
   @ApiOperation({ summary: 'Activate (reactivate) user.' })
   async activate(@Param('id') id: string, @GetUser() user: any) {
     const callerId = user.userId;
-    const callerRole = user.role as Role;
+    const callerRole = user.role as any;
     return this.users.activate(id, callerId, callerRole);
   }
 

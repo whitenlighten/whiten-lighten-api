@@ -18,43 +18,67 @@ export class AppointmentsService {
   }
 
     async publicBook(dto: PublicBookAppointmentDto) {
-      if (!dto.firstName || !dto.lastName || !dto.email || !dto.doctorId || !dto.date || !dto.phone) {
+      if (
+        !dto.firstName ||
+        !dto.lastName ||
+        !dto.email ||
+        !dto.service ||
+        !dto.date ||
+        !dto.phone
+      ) {
         throw new BadRequestException('Missing required fields');
       }
 
-    // Step 1: Self-register patient
-    const patient = await this.patientsService.selfRegister({
-      firstName: dto.firstName,
-      lastName: dto.lastName,
-      email: dto.email,
-      phone: dto.phone,
-    });
+      // Step 1: Self-register patient
+      const patient = await this.patientsService.selfRegister({
+        firstName: dto.firstName,
+        lastName: dto.lastName,
+        email: dto.email,
+        phone: dto.phone,
+      });
 
-    // Step 2: Create appointment (pending by default)
-    const appointment = await this.prisma.appointment.create({
-      data: {
-        patientId: patient.id,
-        doctorId: dto.doctorId,
-        date: new Date(dto.date),
-        reason: dto.reason,
-        status: AppointmentStatus.PENDING,
-      },
-    });
+      // Step 2: Create appointment (pending by default)
+      const appointment = await this.prisma.appointment.create({
+        data: {
+          patientId: patient.id,
+          date: new Date(dto.date),
+          reason: dto.reason,
+          status: AppointmentStatus.PENDING,
+          service: dto.service,
+        },
+      });
 
-    // Step 3: Send mail to doctor and patient
-        await this.mailService.sendAppointmentNotification(
-            patient.email,
-            'Appointment Booked',
-            `Your appointment with doctor ${dto.doctorId} is booked for ${dto.date}.`
-        );
-    const doctor = await this.prisma.user.findUnique({ where: { id: dto.doctorId } });
-    if (doctor?.email) {
+      // Step 3: Send mail to doctor and patient
       await this.mailService.sendAppointmentNotification(
-          doctor.email,
-          'New Appointment',
-          `You have a new appointment with ${patient.firstName} ${patient.lastName} on ${dto.date}.`
+        patient.email,
+        'Appointment Booked',
+        `Your appointment with doctor ${dto.doctorId} is booked for ${dto.date}.`,
       );
-    }
+      // Send notification to all frontdesk users (do not await)
+      this.prisma.user.findMany({ where: { role: 'FRONTDESK' } }).then((frontdesks) => {
+        frontdesks.forEach((fd) => {
+          if (fd.email) {
+            this.mailService.sendAppointmentNotification(
+              fd.email,
+              'New Appointment',
+              `A new appointment has been booked by ${patient.firstName} ${patient.lastName} on ${dto.date}.`,
+            );
+          }
+        });
+      });
+
+      // Only send to doctor if doctorId is provided (do not await)
+      if (dto.doctorId) {
+        this.prisma.user.findUnique({ where: { id: dto.doctorId } }).then((doctor) => {
+          if (doctor?.email) {
+            this.mailService.sendAppointmentNotification(
+              doctor.email,
+              'New Appointment',
+              `You have a new appointment with ${patient.firstName} ${patient.lastName} on ${dto.date}.`,
+            );
+          }
+        });
+      }
 
     return appointment;
 

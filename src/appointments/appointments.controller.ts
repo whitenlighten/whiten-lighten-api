@@ -16,7 +16,7 @@ export class AppointmentsController {
     return this.appointmentsService.create(dto);
   }
 
-    @Public()
+  @Public()
   @ApiOperation({ summary: 'Public appointment booking (self-register + appointment)' })
   @Post('public-book')
   async publicBook(@Body() dto: PublicBookAppointmentDto) {

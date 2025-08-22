@@ -15,6 +15,7 @@ enum Role {
   DOCTOR
   NURSE
   FRONTDESK
+  PATIENT
 }
 
 enum PatientStatus {
@@ -273,6 +274,7 @@ model Appointment {
   createdAt  DateTime          @default(now())
   updatedAt  DateTime          @updatedAt
   reason     String?
+  service    String @default("General Consultation")
 
   patient  Patient @relation(fields: [patientId], references: [id])
   doctor User?   @relation(fields: [doctorId], references: [id])

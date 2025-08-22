@@ -26,6 +26,10 @@ export class CreateAppointmentDto {
   @IsOptional()
   @IsEnum(AppointmentStatus)
   status?: AppointmentStatus;
+
+  @ApiProperty()
+  @IsString()
+  service: string;
 }
 
 export class PublicBookAppointmentDto {
@@ -51,13 +55,18 @@ export class PublicBookAppointmentDto {
 
   // Appointment info
   @ApiProperty()
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
   doctorId: string;
 
   @ApiProperty()
   @IsDateString()
   date: string;
+
+  @ApiProperty({ required: false })
+  @IsNotEmpty()
+  @IsString()
+  service: string;
 
   @ApiProperty({ required: false })
   @IsOptional()

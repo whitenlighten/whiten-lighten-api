@@ -19,7 +19,7 @@ export async function generatePatientId(): Promise<string> {
     num = Math.floor(num / 32);
   }
 
-  return encoded.padStart(5, '0');
+  return 'WL' + encoded.padStart(5, '0') + 'PAT';
 }
 
 

@@ -19,7 +19,9 @@ import {
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { Public } from 'src/common/decorator/public.decorator';
 
+
 @ApiTags('Auth')
+@ApiBearerAuth('JWT-auth')
 @Controller('auth')
 export class AuthController {
   constructor(
