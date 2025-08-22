@@ -21,15 +21,26 @@ export class PatientsService {
     private readonly mailService: MailService,
   ) {}
 
-  private generatePatientId(): string {
+   private async generatePatientId(): Promise<string> {
     const year = new Date().getFullYear();
-    const rand = Math.floor(100000 + Math.random() * 900000);
-    return `PAT-${year}-${rand}`;
+
+    while (true) {
+      const rand = Math.floor(100000 + Math.random() * 900000);
+      const patientId = `PAT-${year}-${rand}`;
+
+      const exists = await this.prisma.patient.findUnique({
+        where: { patientCode: patientId },
+      });
+
+      if (!exists) {
+        return patientId; // ✅ unique ID
+      }
+    }
   }
 
   async create(dto: CreatePatientDto) {
     try {
-      const patientCode = this.generatePatientId();
+      const patientCode = await this.generatePatientId();
       const patient = await this.prisma.patient.create({
         data: { ...dto, patientCode, status: 'APPROVED' },
       });
@@ -41,12 +52,12 @@ export class PatientsService {
 
   async selfRegister(dto: CreatePatientDto) {
     try {
-      const patientCode = this.generatePatientId();
+      const patientCode = await this.generatePatientId();
       const patient = await this.prisma.patient.create({
         data: { ...dto, patientCode, status: 'PENDING' },
       });
 
-await this.mailService.sendAccountApprovalEmail(patient.email, patient.firstName || undefined);
+  await this.mailService.sendAccountApprovalEmail(patient.email, patient.firstName || undefined);
       return { message: 'Self-registered. Confirmation email sent', data: patient, status: 'PENDING' };
     } catch (error) {
       throw new InternalServerErrorException('Error self-registering patient');
