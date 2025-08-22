@@ -4,18 +4,14 @@ import {
   BadRequestException,
   ForbiddenException,
   InternalServerErrorException,
+  Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
 import { ConfigService } from '@nestjs/config';
 import { v4 as uuidv4 } from 'uuid';
-import {
-  ForgotPasswordDto,
-  LoginDto,
-  RegisterUserDto,
-  ResetPasswordDto,
-} from './dto/auth.dto';
+import { ForgotPasswordDto, LoginDto, RegisterUserDto, ResetPasswordDto } from './dto/auth.dto';
 import { MailService } from 'src/utils/mail.service';
 
 @Injectable()
@@ -26,14 +22,17 @@ export class AuthService {
     private readonly config: ConfigService,
     private readonly mailService: MailService, // 👈 injected here
   ) {}
+  private readonly logger = new Logger(AuthService.name);
 
   /* ----------------- REGISTER (create staff users) ----------------- */
   async registerUser(dto: RegisterUserDto) {
+    // Check duplication
     const exists = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
     if (exists) throw new BadRequestException('Email already in use');
 
+    // Hash password
     const hashed = await bcrypt.hash(dto.password, 10);
 
     const user = await this.prisma.user.create({
@@ -45,6 +44,19 @@ export class AuthService {
         role: dto.role,
       },
     });
+
+    // Attempt to send welcome email but do not fail creation if mail fails
+    try {
+      await this.mailService.sendWelcomeEmail(
+        user.email,
+        `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim(),
+        user.role,
+        dto.password, // send plain password only at creation
+      );
+    } catch (err) {
+      this.logger?.warn(`Welcome email failed for ${user.email}.`, (err as any).message || err);
+      // optionally persist an AuditLog entry about email failure
+    }
 
     const { password, ...rest } = user as any;
     return rest;
@@ -58,14 +70,9 @@ export class AuthService {
     if (!user) throw new UnauthorizedException('Invalid credentials');
 
     const passwordMatches = await bcrypt.compare(dto.password, user.password);
-    if (!passwordMatches)
-      throw new UnauthorizedException('Invalid credentials');
+    if (!passwordMatches) throw new UnauthorizedException('Invalid credentials');
 
-    const tokens = await this.getTokensAndStoreRefresh(
-      user.id,
-      user.email,
-      user.role,
-    );
+    const tokens = await this.getTokensAndStoreRefresh(user.id, user.email, user.role);
 
     await this.prisma.user.update({
       where: { id: user.id },
@@ -124,8 +131,7 @@ export class AuthService {
     const stored = await this.prisma.refreshToken.findUnique({
       where: { id: jti },
     });
-    if (!stored || stored.revoked)
-      throw new ForbiddenException('Refresh token revoked');
+    if (!stored || stored.revoked) throw new ForbiddenException('Refresh token revoked');
 
     if (stored.expiresAt < new Date()) {
       await this.prisma.refreshToken.update({
@@ -135,7 +141,7 @@ export class AuthService {
       throw new ForbiddenException('Refresh token expired');
     }
 
-    const isMatch = await bcrypt.compare(refreshToken, stored.hashedToken);
+    const isMatch = await bcrypt.compare(refreshToken, stored.token);
     if (!isMatch) {
       await this.prisma.refreshToken.update({
         where: { id: stored.id },
@@ -216,11 +222,7 @@ export class AuthService {
   }
 
   /* ----------------- Helper ----------------- */
-  private async getTokensAndStoreRefresh(
-    userId: string,
-    email: string,
-    role: any,
-  ) {
+  private async getTokensAndStoreRefresh(userId: string, email: string, role: any) {
     const jti = uuidv4();
 
     const accessPayload = { sub: userId, email, role };
@@ -238,16 +240,13 @@ export class AuthService {
 
     const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
     const expiresAt = new Date(
-      Date.now() +
-        this.parseDurationToMs(
-          this.config.get<string>('JWT_REFRESH_EXPIRES') || '7d',
-        ),
+      Date.now() + this.parseDurationToMs(this.config.get<string>('JWT_REFRESH_EXPIRES') || '7d'),
     );
 
     await this.prisma.refreshToken.create({
       data: {
         id: jti,
-        hashedToken: hashedRefreshToken,
+        token: hashedRefreshToken,
         userId,
         revoked: false,
         expiresAt,

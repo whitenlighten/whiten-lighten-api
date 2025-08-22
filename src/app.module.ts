@@ -3,9 +3,13 @@ import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module';
 import { PrismaModule } from 'prisma/prisma.module';
 import { MailService } from './utils/mail.service';
-import { ClinicalNotesModule } from './clinical-note/clinical-notes.module';
-import { PatientsModule } from './patient/patient.module';
-import { UsersModule } from './user/user.module';
+import { APP_GUARD } from '@nestjs/core';
+import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
+import { RolesGuard } from './auth/guards/roles.guard';
+import { UsersModule } from './users/users.module';
+import { PatientsModule } from './patients/patients.module';
+import { AppointmentsModule } from './appointments/appointments.module';
+import { ClinicalNotesModule } from './clinical-notes/clinical-notes.module';
 
 @Global() // 👈 makes MailService available app-wide
 @Module({
@@ -24,8 +28,19 @@ export class MailModule {}
     PrismaModule,
     MailModule,
     UsersModule,
-    ClinicalNotesModule,
     PatientsModule,
+    AppointmentsModule,
+    ClinicalNotesModule,
+  ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: JwtAuthGuard, // Enforce authentication
+    },
+    {
+      provide: APP_GUARD,
+      useClass: RolesGuard, // Enforce roles
+    },
   ],
 })
 export class AppModule {}

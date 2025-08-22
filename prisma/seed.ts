@@ -8,27 +8,43 @@ async function main() {
   const email = process.env.SUPERADMIN_EMAIL || 'Superadminfire@gmail.com';
   const rawPassword = process.env.SUPERADMIN_PASSWORD || 'Rice&Yam911';
 
-  const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing) {
-    console.log('Superadmin already exists:', email);
-    return;
+  try {
+    const existing = await prisma.user.findUnique({ where: { email } });
+    if (!existing) {
+      const hashed = await bcrypt.hash(rawPassword, 10);
+      await prisma.user.create({
+        data: {
+          email,
+          password: hashed,
+          firstName: 'Super',
+          lastName: 'Admin',
+          role: 'SUPERADMIN',
+          isActive: true,
+          emailVerified: true,
+        },
+      });
+      console.log('✅ Superadmin seeded:', email);
+    } else {
+      console.log('ℹ️ Superadmin already exists:', email);
+    }
+  } catch (err: any) {
+    if (err.code === 'P2021') {
+      console.error('❌ User table does not exist. Did you run migrations?');
+    } else {
+      throw err;
+    }
   }
 
-  const hashed = await bcrypt.hash(rawPassword, 10);
-
-  await prisma.user.create({
-    data: {
-      email,
-      password: hashed,
-      firstName: 'Super',
-      lastName: 'Admin',
-      role: 'SUPERADMIN',
-      isActive: true,
-      emailVerified: true,
-    },
-  });
-
-  console.log('Superadmin seeded:', email);
+  try {
+    await prisma.patientCounter.upsert({
+      where: { id: 1 },
+      update: {},
+      create: { id: 1, value: 0 },
+    });
+    console.log('✅ patientCounter seeded');
+  } catch (err: any) {
+    console.error('❌ Failed to seed patientCounter:', err);
+  }
 }
 
 main()

@@ -23,8 +23,7 @@ export class MailService {
   constructor(private readonly config: ConfigService) {
     const host = this.config.get<string>('SMTP_HOST') || 'smtp.gmail.com';
     const port = Number(this.config.get<string>('SMTP_PORT') || 465);
-    const secure =
-      this.config.get<string>('SMTP_SECURE') === 'true' || port === 465;
+    const secure = this.config.get<string>('SMTP_SECURE') === 'true' || port === 465;
 
     this.transporter = nodemailer.createTransport({
       host,
@@ -35,8 +34,8 @@ export class MailService {
         pass: this.config.get<string>('SMTP_PASS'),
       },
       tls: {
-        rejectUnauthorized:
-          this.config.get<string>('SMTP_REJECT_UNAUTHORIZED') !== 'false',
+        // for dev, if needed; in prod prefer valid certs
+        rejectUnauthorized: this.config.get<string>('SMTP_REJECT_UNAUTHORIZED') !== 'false',
       },
     });
 
@@ -53,11 +52,7 @@ export class MailService {
   }
 
   private formatFrom(): string {
-    return (
-      this.config.get<string>('EMAIL_FROM') ||
-      this.config.get<string>('SMTP_USER') ||
-      ''
-    );
+    return this.config.get<string>('EMAIL_FROM') || this.config.get<string>('SMTP_USER') || '';
   }
 
   // This is the generic send method, it accepts individual arguments
@@ -71,15 +66,11 @@ export class MailService {
         html: html || text,
       });
 
-      this.logger.log(
-        `Mail sent to ${to} (messageId=${(result as any)?.messageId})`,
-      );
+      this.logger.log(`Mail sent to ${to} (messageId=${(result as any)?.messageId})`);
       return result;
     } catch (err) {
-      this.logger.error(
-        `Failed to send email to ${to}`,
-        (err as any).stack || err,
-      );
+      this.logger.error(`Failed to send email to ${to}`, (err as any).stack || err);
+      // Throw for flows that expect error; caller can catch and decide
       throw new InternalServerErrorException('Failed to send email');
     }
   }
@@ -103,12 +94,36 @@ export class MailService {
     role: string,
     maybePassword?: string,
   ) {
-    const subject = `Welcome to the Clinic — ${role}`;
+    const subject = `🎉 Welcome to Whiten Lighten Clinic — ${role} 🎉`;
     const text = `${name ?? ''}, your account has been created with role: ${role}.${maybePassword ? ` Temporary password: ${maybePassword}` : ''}`;
     const html = `
-      <h3>Welcome ${name ?? ''}!</h3>
-      <p>Your account has been created with role: <strong>${role}</strong>.</p>
-      ${maybePassword ? `<p>Your temporary password is: <code>${maybePassword}</code>. Please change it on first login.</p>` : ''}
+      <div style="font-family: 'Segoe UI', Arial, sans-serif; background: #f9f9fc; padding: 32px;">
+        <div style="max-width: 480px; margin: auto; background: #fff; border-radius: 12px; box-shadow: 0 2px 8px #e0e0e0; padding: 32px;">
+          <div style="text-align: center;">
+            <img src="https://img.icons8.com/color/96/000000/tooth.png" alt="Clinic Logo" style="margin-bottom: 16px;" />
+            <h2 style="color: #2d6cdf; margin-bottom: 8px;">Welcome${name ? `, ${name}` : ''}!</h2>
+            <p style="font-size: 1.1em; color: #444;">We're excited to have you join <strong>CelebDent Clinic</strong> as a <span style="color: #2d6cdf;">${role}</span>.</p>
+          </div>
+          ${
+            maybePassword
+              ? `
+            <div style="margin: 24px 0; text-align: center;">
+              <p style="color: #222; font-weight: 500;">Your temporary password:</p>
+              <div style="background: #f1f6ff; border-radius: 6px; padding: 12px; font-size: 1.2em; letter-spacing: 1px; color: #2d6cdf; display: inline-block;">
+                <code>${maybePassword}</code>
+              </div>
+              <p style="font-size: 0.95em; color: #888;">Please change it after your first login for security.</p>
+            </div>
+          `
+              : ''
+          }
+          <hr style="margin: 32px 0; border: none; border-top: 1px solid #eee;" />
+          <p style="color: #666; font-size: 0.98em; text-align: center;">
+            If you have any questions, reply to this email or contact our support team.<br/>
+            <span style="color: #2d6cdf;">Welcome aboard!</span>
+          </p>
+        </div>
+      </div>
     `;
     return this.sendMail(to, subject, text, html);
   }
@@ -138,6 +153,86 @@ export class MailService {
       <p>Hello ${patientName ?? ''},</p>
       <p>Your appointment is scheduled for <strong>${appointmentDate}</strong>${meta?.doctorName ? ` with <strong>Dr. ${meta.doctorName}</strong>` : ''}.</p>
     `;
+    return this.sendMail(to, subject, text, html);
+  }
+
+  async sendAppointmentNotificationToPatient(
+    to: string,
+    patientName: string | undefined,
+    appointmentDate: string,
+    doctorName?: string,
+    location?: string,
+    notes?: string,
+  ) {
+    const subject = '🦷 Your Appointment is Confirmed!';
+    const text = `Hello ${patientName ?? ''}, your appointment is scheduled for ${appointmentDate}${doctorName ? ` with Dr. ${doctorName}` : ''}${location ? ` at ${location}` : ''}.${notes ? ` Notes: ${notes}` : ''}`;
+    const html = `
+      <div style="font-family: 'Segoe UI', Arial, sans-serif; background: #f4f8fb; padding: 32px;">
+        <div style="max-width: 480px; margin: auto; background: #fff; border-radius: 12px; box-shadow: 0 2px 8px #e0e0e0; padding: 32px;">
+          <div style="text-align: center;">
+            <img src="https://img.icons8.com/color/96/000000/calendar--v2.png" alt="Appointment" style="margin-bottom: 16px;" />
+            <h2 style="color: #2d6cdf; margin-bottom: 8px;">Appointment Confirmed</h2>
+            <p style="font-size: 1.1em; color: #444;">Hello${patientName ? `, <strong>${patientName}</strong>` : ''}!</p>
+          </div>
+          <div style="margin: 24px 0; text-align: center;">
+            <p style="color: #222; font-weight: 500;">Your appointment details:</p>
+            <ul style="list-style: none; padding: 0; color: #2d6cdf; font-size: 1.08em;">
+              <li><strong>Date & Time:</strong> ${appointmentDate}</li>
+              ${doctorName ? `<li><strong>Doctor:</strong> Dr. ${doctorName}</li>` : ''}
+              ${location ? `<li><strong>Location:</strong> ${location}</li>` : ''}
+              ${notes ? `<li><strong>Notes:</strong> ${notes}</li>` : ''}
+            </ul>
+          </div>
+          <hr style="margin: 32px 0; border: none; border-top: 1px solid #eee;" />
+          <p style="color: #666; font-size: 0.98em; text-align: center;">
+            Please arrive 10 minutes early. If you need to reschedule, reply to this email.<br/>
+            <span style="color: #2d6cdf;">We look forward to seeing you!</span>
+          </p>
+        </div>
+      </div>
+    `;
+    return this.sendMail(to, subject, text, html);
+  }
+
+  async sendAppointmentNotificationToFrontdesk(
+    to: string,
+    patientName: string,
+    appointmentDate: string,
+    doctorName?: string,
+    location?: string,
+    notes?: string,
+  ) {
+    const subject = '🦷 New Appointment Scheduled';
+    const text = `Frontdesk, a new appointment has been scheduled for ${patientName} on ${appointmentDate}${doctorName ? ` with Dr. ${doctorName}` : ''}${location ? ` at ${location}` : ''}.${notes ? ` Notes: ${notes}` : ''}`;
+    const html = `
+      <div style="font-family: 'Segoe UI', Arial, sans-serif; background: #f4f8fb; padding: 32px;">
+        <div style="max-width: 480px; margin: auto; background: #fff; border-radius: 12px; box-shadow: 0 2px 8px #e0e0e0; padding: 32px;">
+          <div style="text-align: center;">
+            <img src="https://img.icons8.com/color/96/000000/appointment-reminders--v2.png" alt="Frontdesk Notification" style="margin-bottom: 16px;" />
+            <h2 style="color: #2d6cdf; margin-bottom: 8px;">New Appointment Scheduled</h2>
+            <p style="font-size: 1.1em; color: #444;">Patient: <strong>${patientName}</strong></p>
+          </div>
+          <div style="margin: 24px 0; text-align: left;">
+            <p style="color: #222; font-weight: 500;">Appointment Details:</p>
+            <ul style="list-style: none; padding: 0; color: #2d6cdf; font-size: 1.08em;">
+              <li><strong>Date & Time:</strong> ${appointmentDate}</li>
+              ${doctorName ? `<li><strong>Doctor:</strong> Dr. ${doctorName}</li>` : ''}
+              ${location ? `<li><strong>Location:</strong> ${location}</li>` : ''}
+              ${notes ? `<li><strong>Notes:</strong> ${notes}</li>` : ''}
+            </ul>
+          </div>
+          <hr style="margin: 32px 0; border: none; border-top: 1px solid #eee;" />
+          <p style="color: #666; font-size: 0.98em; text-align: center;">
+            Please ensure all preparations are made for this appointment.<br/>
+            <span style="color: #2d6cdf;">Thank you for keeping our clinic running smoothly!</span>
+          </p>
+        </div>
+      </div>
+    `;
+    return this.sendMail(to, subject, text, html);
+  }
+
+  async sendAppointmentNotification(to: string, subject: string, text: string, html?: string) {
     return this.sendMail(to, subject, text, html);
   }
 }
