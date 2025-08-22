@@ -17,6 +17,7 @@ import {
   TokensResponseDto,
 } from './dto/auth.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { Public } from 'src/common/decorator/public.decorator';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -26,6 +27,7 @@ export class AuthController {
     private readonly prisma: PrismaService,
   ) {}
 
+  @Public()
   @Post('login')
   @ApiOperation({ summary: 'Login: returns access and refresh tokens' })
   @ApiResponse({ status: 201, type: TokensResponseDto })
@@ -42,6 +44,7 @@ export class AuthController {
     return this.auth.registerUser(dto);
   }
 
+  @Public()
   @Post('refresh')
   @ApiOperation({ summary: 'Refresh tokens using refresh token' })
   @ApiResponse({ status: 200, type: TokensResponseDto })
@@ -49,18 +52,21 @@ export class AuthController {
     return this.auth.refreshToken(dto.refreshToken);
   }
 
+  @Public()
   @Post('logout')
   @ApiOperation({ summary: 'Logout and revoke refresh token' })
   async logout(@Body() dto: RefreshTokenDto) {
     return this.auth.logout(dto.refreshToken);
   }
 
+  @Public()
   @Post('forgot-password')
   @ApiOperation({ summary: 'Request password reset link via email' })
   async forgotPassword(@Body() dto: ForgotPasswordDto) {
     return this.auth.forgotPassword(dto);
   }
 
+  @Public()
   @Post('reset-password')
   @ApiOperation({ summary: 'Reset password using token from email' })
   async resetPassword(@Body() dto: ResetPasswordDto) {
@@ -68,7 +74,7 @@ export class AuthController {
   }
 
   @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
+  @ApiBearerAuth('JWT-auth')
   @Get('me')
   @ApiOperation({ summary: 'Get current logged in user (from access token)' })
   async me(@Req() req) {
@@ -83,6 +89,15 @@ export class AuthController {
         lastName: true,
         role: true,
         isActive: true,
+        auditLogs: true,
+        emailVerified: true,
+        phone: true,
+        updatedAt: true,
+        refreshTokens: true,
+        password: true,
+        lastLogin: true,
+        deletedAt: true,
+        createdAt: true,
       },
     });
     return user;

@@ -4,6 +4,7 @@ import {
   BadRequestException,
   ForbiddenException,
   InternalServerErrorException,
+  Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -26,14 +27,17 @@ export class AuthService {
     private readonly config: ConfigService,
     private readonly mailService: MailService, // 👈 injected here
   ) {}
+  private readonly logger = new Logger(AuthService.name);
 
   /* ----------------- REGISTER (create staff users) ----------------- */
   async registerUser(dto: RegisterUserDto) {
+    // Check duplication
     const exists = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
     if (exists) throw new BadRequestException('Email already in use');
 
+    // Hash password
     const hashed = await bcrypt.hash(dto.password, 10);
 
     const user = await this.prisma.user.create({
@@ -45,6 +49,22 @@ export class AuthService {
         role: dto.role,
       },
     });
+
+    // Attempt to send welcome email but do not fail creation if mail fails
+    try {
+      await this.mailService.sendWelcomeEmail(
+        user.email,
+        `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim(),
+        user.role,
+        undefined,
+      );
+    } catch (err) {
+      this.logger?.warn(
+        `Welcome email failed for ${user.email}.`,
+        (err as any).message || err,
+      );
+      // optionally persist an AuditLog entry about email failure
+    }
 
     const { password, ...rest } = user as any;
     return rest;

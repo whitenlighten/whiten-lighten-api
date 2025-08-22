@@ -23,8 +23,7 @@ export class MailService {
   constructor(private readonly config: ConfigService) {
     const host = this.config.get<string>('SMTP_HOST') || 'smtp.gmail.com';
     const port = Number(this.config.get<string>('SMTP_PORT') || 465);
-    const secure =
-      this.config.get<string>('SMTP_SECURE') === 'true' || port === 465;
+    const secure = this.config.get<string>('SMTP_SECURE') === 'true' || port === 465;
 
     this.transporter = nodemailer.createTransport({
       host,
@@ -35,8 +34,8 @@ export class MailService {
         pass: this.config.get<string>('SMTP_PASS'),
       },
       tls: {
-        rejectUnauthorized:
-          this.config.get<string>('SMTP_REJECT_UNAUTHORIZED') !== 'false',
+        // for dev, if needed; in prod prefer valid certs
+        rejectUnauthorized: this.config.get<string>('SMTP_REJECT_UNAUTHORIZED') !== 'false',
       },
     });
 
@@ -53,11 +52,7 @@ export class MailService {
   }
 
   private formatFrom(): string {
-    return (
-      this.config.get<string>('EMAIL_FROM') ||
-      this.config.get<string>('SMTP_USER') ||
-      ''
-    );
+    return this.config.get<string>('EMAIL_FROM') || this.config.get<string>('SMTP_USER') || '';
   }
 
   // This is the generic send method, it accepts individual arguments
@@ -71,15 +66,11 @@ export class MailService {
         html: html || text,
       });
 
-      this.logger.log(
-        `Mail sent to ${to} (messageId=${(result as any)?.messageId})`,
-      );
+      this.logger.log(`Mail sent to ${to} (messageId=${(result as any)?.messageId})`);
       return result;
     } catch (err) {
-      this.logger.error(
-        `Failed to send email to ${to}`,
-        (err as any).stack || err,
-      );
+      this.logger.error(`Failed to send email to ${to}`, (err as any).stack || err);
+      // Throw for flows that expect error; caller can catch and decide
       throw new InternalServerErrorException('Failed to send email');
     }
   }
@@ -138,6 +129,10 @@ export class MailService {
       <p>Hello ${patientName ?? ''},</p>
       <p>Your appointment is scheduled for <strong>${appointmentDate}</strong>${meta?.doctorName ? ` with <strong>Dr. ${meta.doctorName}</strong>` : ''}.</p>
     `;
+    return this.sendMail(to, subject, text, html);
+  }
+
+  async sendAppointmentNotification(to: string, subject: string, text: string, html?: string) {
     return this.sendMail(to, subject, text, html);
   }
 }
