@@ -5,8 +5,8 @@ import * as bcrypt from 'bcrypt';
 async function main() {
   const prisma = new PrismaClient();
 
-  const email = process.env.SUPERADMIN_EMAIL || 'garri@example.com';
-  const rawPassword = process.env.SUPERADMIN_PASSWORD || 'garri123';
+  const email = process.env.SUPERADMIN_EMAIL || 'Superadminfire@gmail.com';
+  const rawPassword = process.env.SUPERADMIN_PASSWORD || 'Rice&Yam911';
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
