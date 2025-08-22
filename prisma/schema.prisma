@@ -17,24 +17,213 @@ enum Role {
   PATIENT
 }
 
+enum PatientStatus {
+  PENDING
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum NoteStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum InvoiceStatus {
+  UNPAID
+  PAID
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH
+  INSURANCE
+  HMO
+  TRANSFER
+  CARD
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+  NO_SHOW
+}
+
+enum BloodGroup {
+  A_POS
+  A_NEG
+  B_POS
+  B_NEG
+  AB_POS
+  AB_NEG
+  O_POS
+  O_NEG
+}
+
+enum RegistrationType {
+  SELF
+  FRONTDESK
+  ADMIN
+  DOCTOR
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum MaritalStatus {
+  SINGLE
+  MARRIED
+  DIVORCED
+  WIDOWED
+}
+
+model Patient {
+  id        String @id @default(cuid())
+  patientId String @unique // System-generated e.g., "PAT-00001"
+
+  // Identification
+  firstName     String
+  lastName      String
+  middleName    String?
+  gender        Gender?
+  dateOfBirth   DateTime?
+  age           Int? // Optional (can be derived)
+  maritalStatus MaritalStatus?
+  occupation    String?
+  religion      String?
+  bloodGroup    BloodGroup?
+  genotype      String?
+
+  // Contact Info
+  phone           String @unique
+  alternatePhone  String?
+  email           String @unique
+  address         String?
+  state           String?
+  lga             String?
+  country        String? @default("Nigeria")
+
+  // Emergency Contact
+  emergencyName     String?
+  emergencyPhone    String?
+  emergencyRelation String?
+
+  // Medical Info
+  allergies           String?
+  chronicConditions   String?
+  pastMedicalHistory  String?
+  pastSurgicalHistory String?
+  currentMedications  String?
+  immunizationRecords String?
+  familyHistory       String?
+
+  // Admin / System Info
+  registrationType  RegistrationType @default(FRONTDESK)
+  registeredById    String? // staff who registered patient
+  registeredBy      User?            @relation("RegisteredPatients", fields: [registeredById], references: [id])
+  insuranceProvider String?
+  insuranceNumber   String?
+  paymentMethod     PaymentMethod?
+  primaryDoctorId   String? // linked to Doctor
+  status            PatientStatus    @default(ACTIVE)
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  createdById  String?
+  approvedById User?    @relation(fields: [userId], references: [id])
+
+  // Relations
+  clinicalNotes ClinicalNote[]
+  visits        Visit[]
+  invoices      Invoice[]
+  Appointment   Appointment[]
+  userId        String?
+}
+
+/**
+ * CLINICAL NOTE MODEL
+ * Captures workflow: Nurse writes observation → Doctor approves
+ */
+model ClinicalNote {
+  id String @id @default(cuid())
+
+  // Link to Patient
+  patientId String
+  patient   Patient @relation(fields: [patientId], references: [id])
+
+  // Nurse (creator)
+  createdById String
+  createdBy   User   @relation("NurseCreatedNotes", fields: [createdById], references: [id])
+
+  // Doctor (approver)
+  approvedById String?
+  approvedBy   User?   @relation("DoctorApprovedNotes", fields: [approvedById], references: [id])
+
+  observations String // Nurse’s notes
+  doctorNotes  String? // Doctor’s final notes / diagnosis
+  status       NoteStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/**
+ * VISIT MODEL
+ * Represents a patient visit (can be linked to appointments later)
+ */
+model Visit {
+  id        String   @id @default(cuid())
+  patientId String
+  patient   Patient  @relation(fields: [patientId], references: [id])
+  visitDate DateTime @default(now())
+  reason    String?
+  notes     String?
+}
+
+/**
+ * INVOICE MODEL
+ * Patient billing records
+ */
+model Invoice {
+  id          String        @id @default(cuid())
+  patientId   String
+  patient     Patient       @relation(fields: [patientId], references: [id])
+  amount      Float
+  status      InvoiceStatus @default(UNPAID)
+  description String?
+  issuedAt    DateTime      @default(now())
+  paidAt      DateTime?
+}
+
 model User {
-  id         String    @id @default(uuid())
-  email      String    @unique
-  password   String
-  firstName  String?
-  lastName   String?
-  phone      String?
-  role       Role
-  isActive   Boolean   @default(true)
-  emailVerified Boolean @default(false)
-  lastLogin  DateTime?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  deletedAt  DateTime?
+  id            String    @id @default(uuid())
+  email         String    @unique
+  password      String
+  firstName     String?
+  lastName      String?
+  phone         String?
+  role          Role
+  isActive      Boolean   @default(true)
+  emailVerified Boolean   @default(false)
+  lastLogin     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
 
   // relation
   refreshTokens RefreshToken[]
-  auditLogs     AuditLog[] @relation("UserAuditLogs")
+  auditLogs     AuditLog[]     @relation("UserAuditLogs")
+  patients      Patient[]      @relation("RegisteredPatients") // Patients registered by staff
+  nurseNotes    ClinicalNote[] @relation("NurseCreatedNotes") // Notes created as Nurse
+  doctorNotes   ClinicalNote[] @relation("DoctorApprovedNotes") // Notes approved as Doctor
+  Appointment   Appointment[]
+  Patient       Patient[]
 
   @@index([email])
 }
@@ -42,7 +231,7 @@ model User {
 model RefreshToken {
   // We'll use the id as the token record identifier (jti)
   id        String   @id @default(uuid())
-  token     String   // store hashed token
+  token     String // store hashed token
   userId    String
   revoked   Boolean  @default(false)
   expiresAt DateTime
@@ -61,4 +250,24 @@ model AuditLog {
   createdAt  DateTime @default(now())
 
   user User? @relation("UserAuditLogs", fields: [userId], references: [id])
+}
+
+model Appointment {
+  id         String            @id @default(uuid())
+  patientId  String
+  doctorId String? // doctor id
+  date       DateTime
+  status     AppointmentStatus @default(PENDING)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  reason     String?
+
+  patient  Patient @relation(fields: [patientId], references: [id])
+  doctor User?   @relation(fields: [doctorId], references: [id])
+}
+
+model PatientCounter {
+  id        Int      @id @default(1) // always one row
+  value     Int      @default(0)
+  updatedAt DateTime @updatedAt
 }

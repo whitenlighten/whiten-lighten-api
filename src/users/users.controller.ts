@@ -1,26 +1,26 @@
 // src/modules/users/users.controller.ts
 import {
-    Controller,
-    Post,
-    Body,
-    UseGuards,
-    Get,
-    Query,
-    Param,
-    Patch,
-    Delete
+  Controller,
+  Post,
+  Body,
+  UseGuards,
+  Get,
+  Query,
+  Param,
+  Patch,
+  Delete,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
-import { Roles } from 'src/auth/roles.decorator';
 import { Role } from 'src/auth/role.enum';
 import { ChangeRoleDto, CreateUserDto, QueryUsersDto, UpdateUserDto } from './users.dto';
 import { GetUser } from 'src/common/decorator/get-user.decorator';
+import { Roles } from 'src/auth/decorator/roles.decorator';
 
-@ApiTags('Users')
-@ApiBearerAuth()
+@ApiTags('users')
+@ApiBearerAuth('JWT-auth')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('users')
 export class UsersController {
@@ -30,8 +30,7 @@ export class UsersController {
   @Post()
   @Roles(Role.SUPERADMIN, Role.ADMIN)
   @ApiOperation({
-    summary:
-      'Create a user (Superadmin/Admin only). Service enforces role rules.',
+    summary: 'Create a user (Superadmin/Admin only). Service enforces role rules.',
   })
   async create(@Body() dto: CreateUserDto, @GetUser() user: any) {
     const callerId = user.userId;
@@ -59,11 +58,7 @@ export class UsersController {
   @Patch(':id')
   @Roles(Role.SUPERADMIN, Role.ADMIN, Role.DOCTOR, Role.NURSE, Role.FRONTDESK)
   @ApiOperation({ summary: 'Update user profile. Self or admin can update.' })
-  async update(
-    @Param('id') id: string,
-    @Body() dto: UpdateUserDto,
-    @GetUser() user: any,
-  ) {
+  async update(@Param('id') id: string, @Body() dto: UpdateUserDto, @GetUser() user: any) {
     const callerId = user.userId;
     const callerRole = user.role as Role;
     return this.users.update(id, dto, callerId, callerRole);
@@ -76,11 +71,7 @@ export class UsersController {
     summary:
       'Change user role. Only Superadmin/Admin can access; service enforces who can assign which role.',
   })
-  async changeRole(
-    @Param('id') id: string,
-    @Body() dto: ChangeRoleDto,
-    @GetUser() user: any,
-  ) {
+  async changeRole(@Param('id') id: string, @Body() dto: ChangeRoleDto, @GetUser() user: any) {
     const callerId = user.userId;
     const callerRole = user.role as Role;
     return this.users.changeRole(id, dto, callerId, callerRole);
@@ -110,14 +101,6 @@ export class UsersController {
 
   // Optional: Get current user (duplicate of /auth/me but handy)
   @Get('me/profile')
-  @Roles(
-    Role.SUPERADMIN,
-    Role.ADMIN,
-    Role.DOCTOR,
-    Role.NURSE,
-    Role.FRONTDESK,
-    Role.PATIENT,
-  )
   async me(@GetUser() user: any) {
     return this.users.findOne(user.userId);
   }

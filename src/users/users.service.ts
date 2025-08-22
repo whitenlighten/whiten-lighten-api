@@ -30,13 +30,9 @@ export class UsersService {
 
     // If caller is not SUPERADMIN or ADMIN -> forbidden
     if (
-      ![
-        'SUPERADMIN',
-        'ADMIN',
-        'DOCTOR',
-        'NURSE',
-        'FRONTDESK',
-      ].includes(callerRole)
+      !['SUPERADMIN', 'ADMIN', 'DOCTOR', 'NURSE', 'FRONTDESK'].includes(
+        callerRole,
+      )
     ) {
       throw new ForbiddenException('Insufficient permissions to create users');
     }
@@ -130,6 +126,17 @@ export class UsersService {
       ];
     }
 
+    // -------- Handle fields projection --------
+    let selectedFields: Record<string, boolean> = { id: true }; // always include id
+    if (query.fields) {
+      const fields = query.fields.split(',').map((f) => f.trim());
+      fields.forEach((field) => {
+        if (field.length > 0) {
+          selectedFields[field] = true;
+        }
+      });
+    }
+
     const [total, data] = await this.prisma.$transaction([
       this.prisma.user.count({ where }),
       this.prisma.user.findMany({
@@ -137,17 +144,7 @@ export class UsersService {
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
-        select: {
-          id: true,
-          email: true,
-          firstName: true,
-          lastName: true,
-          phone: true,
-          role: true,
-          isActive: true,
-          lastLogin: true,
-          createdAt: true,
-        },
+        select: selectedFields,
       }),
     ]);
 
@@ -185,10 +182,7 @@ export class UsersService {
     callerRole: Role,
   ) {
     // If caller is not the user and not admin/superadmin -> forbidden
-    if (
-      callerId !== id &&
-      !['SUPERADMIN', 'ADMIN'].includes(callerRole)
-    ) {
+    if (callerId !== id && !['SUPERADMIN', 'ADMIN'].includes(callerRole)) {
       throw new ForbiddenException(
         'Insufficient permissions to update this user',
       );
@@ -252,7 +246,7 @@ export class UsersService {
     // ADMIN cannot assign ADMIN or SUPERADMIN
     if (
       callerRole === Role.ADMIN &&
-      ["ADMIN", "SUPERADMIN"].includes(dto.role)
+      ['ADMIN', 'SUPERADMIN'].includes(dto.role)
     ) {
       throw new ForbiddenException(
         'Admin cannot assign ADMIN or SUPERADMIN roles',
@@ -295,7 +289,7 @@ export class UsersService {
     const target = await this.prisma.user.findUnique({ where: { id } });
     if (!target) throw new NotFoundException('User not found');
 
-    if (!["SUPERADMIN", "ADMIN"].includes(callerRole)) {
+    if (!['SUPERADMIN', 'ADMIN'].includes(callerRole)) {
       throw new ForbiddenException(
         'Insufficient permissions to deactivate user',
       );
@@ -331,7 +325,7 @@ export class UsersService {
     const target = await this.prisma.user.findUnique({ where: { id } });
     if (!target) throw new NotFoundException('User not found');
 
-    if (!["SUPERADMIN", "ADMIN"].includes(callerRole)) {
+    if (!['SUPERADMIN', 'ADMIN'].includes(callerRole)) {
       throw new ForbiddenException('Insufficient permissions to activate user');
     }
 

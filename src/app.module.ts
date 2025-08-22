@@ -7,6 +7,8 @@ import { APP_GUARD } from '@nestjs/core';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { RolesGuard } from './auth/guards/roles.guard';
 import { UsersModule } from './users/users.module';
+import { PatientsModule } from './patients/patients.module';
+import { AppointmentsModule } from './appointments/appointments.module';
 
 @Global() // 👈 makes MailService available app-wide
 @Module({
@@ -25,6 +27,8 @@ export class MailModule {}
     PrismaModule,
     MailModule,
     UsersModule,
+    PatientsModule,
+    AppointmentsModule,
   ],
   providers: [
     {

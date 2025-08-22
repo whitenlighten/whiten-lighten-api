@@ -64,25 +64,46 @@ export class ChangeRoleDto {
   role: Role;
 }
 
-
 export class QueryUsersDto {
-  @ApiPropertyOptional({ description: 'Page number', example: '1' })
+  @ApiPropertyOptional({
+    description: 'Page number for pagination',
+    example: '1',
+  })
   @IsOptional()
   @IsNumberString()
   page?: string;
 
-  @ApiPropertyOptional({ description: 'Page size', example: '20' })
+  @ApiPropertyOptional({
+    description: 'Number of results per page (max: 100)',
+    example: '20',
+  })
   @IsOptional()
   @IsNumberString()
   limit?: string;
 
-  @ApiPropertyOptional({ description: 'Filter by role', enum: Role })
+  @ApiPropertyOptional({
+    description: 'Filter users by role',
+    enum: Role,
+    example: '',
+  })
   @IsOptional()
   @IsEnum(Role)
   role?: Role;
 
-  @ApiPropertyOptional({ description: 'Search by email or name' })
+  @ApiPropertyOptional({
+    description: 'Search query (matches email, firstName, or lastName)',
+    example: '',
+  })
   @IsOptional()
   @IsString()
   q?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Comma-separated list of fields to include in the response. Example: "email,firstName,lastName,role,isActive,auditLogs,emailVerified,phone,updatedAt,refreshTokens,password,lastLogin,deletedAt,createdAt"',
+    example: 'email,firstName,lastName',
+  })
+  @IsOptional()
+  @IsString()
+  fields?: string; // comma-separated list of fields
 }
