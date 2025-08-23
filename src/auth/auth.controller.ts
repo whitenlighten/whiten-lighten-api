@@ -74,8 +74,6 @@ export class AuthController {
   @Get('me')
   @ApiOperation({ summary: 'Get current logged in user (from access token)' })
   async me(@Req() Request: any) {
-    console.log('Request user:', Request.user);
-    // JwtStrategy.validate() should return a payload with userId
     const { userId } = Request.user;
 
     const user = await this.prisma.user.findUnique({

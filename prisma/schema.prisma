@@ -136,6 +136,8 @@ model Patient {
 
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  approvedAt    DateTime?
+  deletedAt    DateTime?
   createdById  String?
   approvedById User?    @relation(fields: [userId], references: [id])
 
@@ -217,6 +219,7 @@ model User {
   lastName      String?
   phone         String?
   role          Role
+  specialization String?
   isActive      Boolean   @default(true)
   emailVerified Boolean   @default(false)
   lastLogin     DateTime?

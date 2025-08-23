@@ -1,14 +1,15 @@
 import {
-    Controller,
-    Post,
-    Get,
-    Patch,
-    Delete,
-    Param,
-    Body,
-    Query,
-    UseGuards,
-    ParseUUIDPipe,
+  Controller,
+  Post,
+  Get,
+  Patch,
+  Delete,
+  Param,
+  Body,
+  Query,
+  UseGuards,
+  ParseUUIDPipe,
+  Request,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 
@@ -16,12 +17,7 @@ import { PatientsService } from './patients.service';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Role } from '@prisma/client';
 import { Roles } from 'src/auth/decorator/roles.decorator';
-import {
-    ApprovePatientDto,
-    CreatePatientDto,
-    QueryPatientsDto,
-    UpdatePatientDto,
-} from './patients.dto';
+import { CreatePatientDto, QueryPatientsDto, UpdatePatientDto } from './patients.dto';
 import { GetUser } from 'src/common/decorator/get-user.decorator';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { Public } from 'src/common/decorator/public.decorator';
@@ -61,18 +57,24 @@ export class PatientsController {
   // =====================
   // 3. Approve patient (any staff except Patient)
   // =====================
-  @Patch(':id/approve')
-  @Roles(Role.ADMIN, Role.DOCTOR, Role.FRONTDESK)
+  @Patch(':patientId/approve')
+  @Roles(Role.ADMIN, Role.DOCTOR, Role.FRONTDESK, Role.NURSE, Role.SUPERADMIN)
+  @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Approve self-registered patient' })
-  async approvePatient(@Param('id', ParseUUIDPipe) id: string, @Body() dto: ApprovePatientDto) {
-    return this.patientsService.approve(id, dto);
+  async approvePatient(
+    @Param('patientId') patientId: string,
+    @Body() body: any,
+    @Request() req: any,
+  ) {
+    const approver = req.user; // <-- comes from JwtStrategy.validate()
+    return this.patientsService.approve(patientId, approver);
   }
 
   // =====================
   // 4. List patients (staff only)
   // =====================
   @Get()
-  @Roles(Role.SUPERADMIN, Role.ADMIN, Role.DOCTOR, Role.FRONTDESK)
+  @Roles(Role.SUPERADMIN, Role.ADMIN, Role.DOCTOR, Role.FRONTDESK, Role.NURSE)
   @ApiOperation({ summary: 'List patients (staff only)' })
   async getPatients(@Query() query: QueryPatientsDto, @GetUser() user: any) {
     return this.patientsService.findAll(query, user);
@@ -84,7 +86,7 @@ export class PatientsController {
   @Get(':id')
   @Roles(Role.SUPERADMIN, Role.ADMIN, Role.DOCTOR, Role.FRONTDESK, Role.PATIENT)
   @ApiOperation({ summary: 'Get patient by ID' })
-  async getPatient(@Param('id', ParseUUIDPipe) id: string, @GetUser() user: any) {
+  async getPatient(@Param('id') id: string, @GetUser() user: any) {
     return this.patientsService.findOne(id, user);
   }
 

@@ -1,8 +1,26 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Request,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AppointmentsService } from './appointments.service';
-import { CreateAppointmentDto, PublicBookAppointmentDto, UpdateAppointmentDto } from './appointment.dto';
+import {
+  CreateAppointmentDto,
+  PublicBookAppointmentDto,
+  UpdateAppointmentDto,
+} from './appointment.dto';
 import { Public } from 'src/common/decorator/public.decorator';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { RolesGuard } from 'src/auth/guards/roles.guard';
+import { Roles } from 'src/auth/decorator/roles.decorator';
+import { Role } from '@prisma/client';
 
 @ApiTags('appointments')
 @Controller('appointments')
@@ -28,6 +46,15 @@ export class AppointmentsController {
   @Get()
   async findAll(@Query() query: any) {
     return this.appointmentsService.findAll(query);
+  }
+
+  @ApiOperation({ summary: 'Get all appointments for logged in patient' })
+  @ApiBearerAuth('JWT-auth')
+  @UseGuards(JwtAuthGuard, RolesGuard) // 👈 protect with JWT
+  @Get('me')
+  @Roles(Role.PATIENT)
+  async findAllForMe(@Request() Request: any) {
+    return this.appointmentsService.findAllForMe(Request.user.userId);
   }
 
   @ApiOperation({ summary: 'Get appointment by ID' })

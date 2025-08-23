@@ -16,7 +16,7 @@ export class CreatePatientDto {
   @ApiPropertyOptional({ example: 'jane.doe@example.com' })
   @IsOptional()
   @IsEmail()
-  email?: string;
+  email: string;
 
   @ApiPropertyOptional({ example: '+2347012345678' })
   @IsOptional()
@@ -85,7 +85,10 @@ export class QueryPatientsDto {
   @IsString()
   q?: string;
 
-  @ApiPropertyOptional({ description: 'Comma-separated fields to include' })
+  @ApiPropertyOptional({
+    description:
+      'Comma-separated fields to include (firstName,lastName,middleName,gender,dateOfBirth,age,maritalStatus,occupation,religion,bloodGroup,genotype,phone,alternatePhone,email,address,state,lga,country,emergencyName,emergencyPhone,emergencyRelation,allergies,chronicConditions,pastMedicalHistory,pastSurgicalHistory,currentMedications,immunizationRecords,familyHistory,registrationType,registeredById,registeredBy,insuranceProvider,insuranceNumber,paymentMethod,primaryDoctorId,status,createdAt,updatedAt,createdById,approvedById,clinicalNotes,visits,invoices,Appointment,userId,NoteSuggestion)',
+  })
   @IsOptional()
   @IsString()
   fields?: string;

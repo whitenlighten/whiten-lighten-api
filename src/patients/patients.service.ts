@@ -1,17 +1,21 @@
 import {
-    Injectable,
-    ForbiddenException,
-    NotFoundException,
-    BadRequestException,
+  Injectable,
+  ForbiddenException,
+  NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { Role, PatientStatus, RegistrationType } from '@prisma/client';
 import { PrismaService } from 'prisma/prisma.service';
 import { CreatePatientDto, QueryPatientsDto, UpdatePatientDto } from './patients.dto';
 import { getPatientId } from 'src/utils/patient-id.util';
+import { MailService } from 'src/utils/mail.service';
 
 @Injectable()
 export class PatientsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mailService: MailService,
+  ) {}
 
   /**
    * =============================
@@ -62,7 +66,20 @@ export class PatientsService {
       throw new BadRequestException('Email is required');
     }
 
-    return this.prisma.patient.create({
+    // 1. First, create a User with role PATIENT
+    const user = await this.prisma.user.create({
+      data: {
+        email: createDto.email,
+        password: '', // or null if you want OTP/Google login later
+        role: 'PATIENT',
+        phone: createDto.phone,
+        firstName: createDto.firstName,
+        lastName: createDto.lastName,
+      },
+    });
+
+    // 2. Then, create Patient linked to that User
+    const patient = await this.prisma.patient.create({
       data: {
         firstName: createDto.firstName,
         lastName: createDto.lastName,
@@ -71,8 +88,11 @@ export class PatientsService {
         status: PatientStatus.PENDING,
         patientId: await getPatientId(),
         registrationType: RegistrationType.SELF,
+        userId: user.id, // link patient → user
       },
     });
+
+    return patient;
   }
 
   /**
@@ -80,20 +100,26 @@ export class PatientsService {
    * APPROVE self-registered patient
    * =============================
    */
-  async approve(id: string, user: any) {
+  async approve(patientId: string, user: any) {
     if (user.role === Role.PATIENT) {
       throw new ForbiddenException('Patients cannot approve other patients');
     }
 
-    const patient = await this.prisma.patient.findUnique({ where: { id } });
+    const patient = await this.prisma.patient.findUnique({ where: { patientId } });
     if (!patient) throw new NotFoundException('Patient not found');
     if (patient.status !== PatientStatus.PENDING) {
       throw new BadRequestException('Only pending patients can be approved');
     }
 
+    // Send mail after approval
+    await this.mailService.sendPatientApproval(
+      patient.email,
+      `${patient.firstName} ${patient.lastName}`,
+    );
+
     return this.prisma.patient.update({
-      where: { id },
-      data: { status: PatientStatus.ACTIVE, approvedById: user.id },
+      where: { patientId },
+      data: { status: PatientStatus.ACTIVE, approvedById: user.id, approvedAt: new Date() },
     });
   }
 
@@ -123,10 +149,11 @@ export class PatientsService {
     // fields parsing
     let select: any = { id: true };
     if (query.fields) {
-      const fieldsArray = query.fields.split(',');
-      select = {};
-      fieldsArray.forEach((field) => {
-        select[field.trim()] = true;
+      const fields = query.fields.split(',').map((f) => f.trim());
+      fields.forEach((field) => {
+        if (field.length > 0) {
+          select[field] = true;
+        }
       });
     }
 
@@ -174,21 +201,21 @@ export class PatientsService {
    * GET single patient by patientId
    * =============================
    */
-    async findOneByPatientId(patientId: string, user: any) {
-        const patient = await this.prisma.patient.findUnique({
-            where: { patientId },
-            include: {
-                clinicalNotes: false,
-            },
-        });
-        if (!patient) throw new NotFoundException('Patient not found');
+  async findOneByPatientId(patientId: string, user: any) {
+    const patient = await this.prisma.patient.findUnique({
+      where: { patientId },
+      include: {
+        clinicalNotes: false,
+      },
+    });
+    if (!patient) throw new NotFoundException('Patient not found');
 
-        // if (user.role === Role.PATIENT && user.id !== patient.id) {
-        //     throw new ForbiddenException('You can only view your own profile');
-        // }
+    // if (user.role === Role.PATIENT && user.id !== patient.id) {
+    //     throw new ForbiddenException('You can only view your own profile');
+    // }
 
-        return patient;
-    }
+    return patient;
+  }
 
   /**
    * =============================
