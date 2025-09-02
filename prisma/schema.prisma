@@ -33,6 +33,7 @@ enum NoteStatus {
 
 enum InvoiceStatus {
   UNPAID
+  PARTIALLY_PAID
   PAID
   CANCELLED
 }
@@ -83,6 +84,16 @@ enum MaritalStatus {
   DIVORCED
   WIDOWED
 }
+
+
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
 
 model Patient {
   id        String @id @default(cuid())
@@ -200,16 +211,7 @@ model Visit {
  * INVOICE MODEL
  * Patient billing records
  */
-model Invoice {
-  id          String        @id @default(cuid())
-  patientId   String
-  patient     Patient       @relation(fields: [patientId], references: [id])
-  amount      Float
-  status      InvoiceStatus @default(UNPAID)
-  description String?
-  issuedAt    DateTime      @default(now())
-  paidAt      DateTime?
-}
+
 
 model User {
   id            String    @id @default(uuid())
@@ -288,6 +290,48 @@ model PatientCounter {
   value     Int      @default(0)
   updatedAt DateTime @updatedAt
 }
+
+model Invoice {
+  id          String        @id @default(cuid())
+  patientId   String
+  patient     Patient       @relation(fields: [patientId], references: [id])
+   amount      Float                        // total expected amount
+  status      InvoiceStatus @default(UNPAID)
+
+  // optional but useful for real systems
+  currency    String        @default("NGN")
+  description String?
+  reference   String?       @unique       // e.g. "INV-2025-000123"
+  dueDate     DateTime?
+  metadata    Json?
+
+  // timestamps
+  issuedAt    DateTime      @default(now())
+  paidAt      DateTime?
+  updatedAt   DateTime      @updatedAt
+
+  // RELATION (new)
+  payments    Payment[]    // ← NEW: Link multiple payments (partial, retry, refund)
+}
+
+model Payment {
+  id            String         @id @default(cuid())
+  invoiceId     String
+  invoice       Invoice        @relation(fields: [invoiceId], references: [id])
+
+  amount        Float
+  method        PaymentMethod              // reuse your existing enum
+  status        PaymentStatus  @default(PENDING)
+
+  // gateway/ops
+  transactionRef String?       @unique
+  gateway        String?       // e.g. "paystack", "flutterwave", "manual"
+  note           String?
+
+  createdAt     DateTime       @default(now())
+  paidAt        DateTime?
+}
+
 
 model NoteSuggestion {
   id          String   @id @default(cuid())

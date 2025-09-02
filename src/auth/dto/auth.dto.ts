@@ -6,19 +6,19 @@ import { IsEmail, IsEnum, IsOptional, IsString, MinLength } from 'class-validato
 export class LoginDto {
   @ApiProperty({ example: 'admin@example.com' })
   @IsEmail()
-  email: string;
+  email!: string; // required, non-optional
 
   @ApiProperty({ example: 'SuperSecret123', minLength: 6 })
   @IsString()
   @MinLength(6)
-  password: string;
+  password!: string; // required, non-optional
 }
 
-// ==================== REGISTER DTO (For SuperAdmin creating users) ====================
+// ==================== REGISTER DTO ====================
 export class RegisterUserDto {
   @ApiProperty({ example: 'doctor@hospital.com' })
   @IsEmail()
-  email: string;
+  email!: string;
 
   @ApiProperty({ example: 'Doctor', required: false })
   @IsOptional()
@@ -33,44 +33,44 @@ export class RegisterUserDto {
   @ApiProperty({ example: 'StrongPass1', minLength: 6 })
   @IsString()
   @MinLength(6)
-  password: string;
+  password!: string;
 
   @ApiProperty({ enum: Role, example: Role.DOCTOR })
   @IsEnum(Role)
-  role: Role;
+  role!: Role;
 }
 
 // ==================== FORGOT PASSWORD DTO ====================
 export class ForgotPasswordDto {
   @ApiProperty({ example: 'user@example.com' })
   @IsEmail()
-  email: string;
+  email!: string;
 }
 
 // ==================== RESET PASSWORD DTO ====================
 export class ResetPasswordDto {
   @ApiProperty({ description: 'Reset token sent in email link (JWT)' })
   @IsString()
-  token: string;
+  token!: string;
 
   @ApiProperty({ example: 'NewStrongPassword1', minLength: 6 })
   @IsString()
   @MinLength(6)
-  newPassword: string;
+  newPassword!: string;
 }
 
 // ==================== REFRESH TOKEN DTO ====================
 export class RefreshTokenDto {
   @ApiProperty({ description: 'Refresh token as received at login' })
   @IsString()
-  refreshToken: string;
+  refreshToken!: string;
 }
 
 // ==================== TOKEN RESPONSE DTO ====================
 export class TokensResponseDto {
   @ApiProperty({ description: 'JWT access token' })
-  accessToken: string;
+  accessToken!: string;
 
   @ApiProperty({ description: 'JWT refresh token' })
-  refreshToken: string;
+  refreshToken!: string;
 }

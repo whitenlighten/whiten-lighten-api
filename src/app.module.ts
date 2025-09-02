@@ -10,11 +10,16 @@ import { UsersModule } from './users/users.module';
 import { PatientsModule } from './patients/patients.module';
 import { AppointmentsModule } from './appointments/appointments.module';
 import { ClinicalNotesModule } from './clinical-notes/clinical-notes.module';
+import { BillingModule } from './billing/billing.module';
+import { BillingController } from './billing.controller';
+import { BillingService } from './billing.service';
 
 @Global() // 👈 makes MailService available app-wide
 @Module({
-  providers: [MailService],
-  exports: [MailService], // 👈 export so other modules can inject it
+  providers: [MailService, BillingService],
+  exports: [MailService],
+  imports: [BillingModule],
+  controllers: [BillingController], // 👈 export so other modules can inject it
 })
 export class MailModule {}
 

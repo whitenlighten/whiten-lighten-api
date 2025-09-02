@@ -90,7 +90,6 @@ export class AuthController {
         phone: true,
         updatedAt: true,
         refreshTokens: false,
-        password: false, // ⚠️ don’t return password
         lastLogin: true,
         deletedAt: true,
         createdAt: true,

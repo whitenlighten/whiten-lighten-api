@@ -346,6 +346,7 @@ export class MailService {
     </div>
   `;
 
-    await this.sendMail(email, subject, html);
+    await this.sendMail(email, subject, 'Update on your appointment request', html);
+
   }
 }
