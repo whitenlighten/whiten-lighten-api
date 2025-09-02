@@ -6,12 +6,12 @@ export class CreateInvoiceDto {
   @ApiProperty({ description: 'Patient ID (UUID from Patient model)' })
   @IsString()
   @IsNotEmpty()
-  patientId: string;
+  patientId!: string; // required, use !
 
   @ApiProperty({ description: 'Invoice total amount', example: 20000 })
   @IsNumber()
   @IsPositive()
-  amount: number;
+  amount!: number; // required
 
   @ApiPropertyOptional({ description: 'Currency code', example: 'NGN' })
   @IsOptional()
@@ -57,14 +57,14 @@ export class QueryInvoicesDto {
 }
 
 export class AddPaymentDto {
-  @ApiProperty({ description: 'Amount paid', example: 15000 })
+ @ApiProperty({ description: 'Amount paid', example: 15000 })
   @IsNumber()
   @IsPositive()
-  amount: number;
+  amount!: number; // required
 
   @ApiProperty({ enum: PaymentMethod, example: PaymentMethod.TRANSFER })
   @IsEnum(PaymentMethod)
-  method: PaymentMethod;
+  method!: PaymentMethod; // required
 
   @ApiPropertyOptional({ description: 'Gateway code/name (paystack/flutterwave/manual)' })
   @IsOptional()

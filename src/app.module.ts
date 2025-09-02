@@ -11,8 +11,9 @@ import { PatientsModule } from './patients/patients.module';
 import { AppointmentsModule } from './appointments/appointments.module';
 import { ClinicalNotesModule } from './clinical-notes/clinical-notes.module';
 import { BillingModule } from './billing/billing.module';
-import { BillingController } from './billing.controller';
-import { BillingService } from './billing.service';
+import { BillingService } from './billing/billing.service';
+import { BillingController } from './billing/billing.controller';
+;
 
 @Global() // 👈 makes MailService available app-wide
 @Module({

@@ -5,7 +5,7 @@ export class CreateClinicalNoteDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
-  content: string;
+  content!: string; // <-- mark as required
 
   @ApiProperty({ required: false })
   @IsOptional()
@@ -24,5 +24,5 @@ export class CreateNoteSuggestionDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
-  content: string;
+  content!: string; // <-- mark as required
 }

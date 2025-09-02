@@ -14,7 +14,7 @@ import { Role } from '@prisma/client';
 export class CreateUserDto {
   @ApiProperty({ example: 'jane.doe@example.com' })
   @IsEmail()
-  email: string;
+  email!: string;
 
   @ApiProperty({ example: 'Jane' })
   @IsOptional()
@@ -34,11 +34,11 @@ export class CreateUserDto {
   @ApiProperty({ example: 'StrongPassword1', minLength: 6 })
   @IsString()
   @MinLength(6)
-  password: string;
+  password!: string;
 
   @ApiProperty({ enum: Role, example: Role.DOCTOR })
   @IsEnum(Role)
-  role: Role;
+  role!: Role;
 }
 
 export class UpdateUserDto {
@@ -61,7 +61,7 @@ export class UpdateUserDto {
 export class ChangeRoleDto {
   @ApiProperty({ enum: Role })
   @IsEnum(Role)
-  role: Role;
+  role!: Role;
 }
 
 export class QueryUsersDto {

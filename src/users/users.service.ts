@@ -23,29 +23,18 @@ export class UsersService {
 
   // Create user with strict role rules (callerRole is from the authenticated user)
   async create(dto: CreateUserDto, callerId: string, callerRole: Role) {
-    // Prevent creation of SUPERADMIN through this endpoint
     if (dto.role === Role.SUPERADMIN) {
       throw new ForbiddenException('Cannot create SUPERADMIN via API');
     }
 
-    // If caller is not SUPERADMIN or ADMIN -> forbidden
-    if (
-      !['SUPERADMIN', 'ADMIN', 'DOCTOR', 'NURSE', 'FRONTDESK'].includes(
-        callerRole,
-      )
-    ) {
+    if (!['SUPERADMIN', 'ADMIN', 'DOCTOR', 'NURSE', 'FRONTDESK'].includes(callerRole)) {
       throw new ForbiddenException('Insufficient permissions to create users');
     }
 
-    // Check rules:
-    // - Only SUPERADMIN can create ADMIN
     if (dto.role === Role.ADMIN && callerRole !== Role.SUPERADMIN) {
       throw new ForbiddenException('Only SUPERADMIN can create ADMIN role');
     }
 
-    // Admin can create DOCTOR, NURSE, FRONTDESK (not ADMIN or SUPERADMIN)
-    // SUPERADMIN can create any except SUPERADMIN
-    // Unique email/phone check
     const existing = await this.prisma.user.findFirst({
       where: { OR: [{ email: dto.email }, { phone: dto.phone }] },
     });
@@ -53,7 +42,6 @@ export class UsersService {
       throw new BadRequestException('Email or phone already in use');
     }
 
-    // Hash password
     const hashed = await bcrypt.hash(dto.password, 12);
 
     const user = await this.prisma.user.create({
@@ -67,7 +55,6 @@ export class UsersService {
       },
     });
 
-    // Audit log
     await this.prisma.auditLog.create({
       data: {
         userId: callerId,
@@ -78,7 +65,7 @@ export class UsersService {
       },
     });
 
-    // Send welcome email (non-blocking)
+    // --- Fixed error handling ---
     try {
       await this.mailService.sendWelcomeEmail(
         user.email,
@@ -86,12 +73,11 @@ export class UsersService {
         user.role,
         undefined,
       );
-    } catch (err) {
-      this.logger.warn(
-        `Welcome email failed for ${user.email}`,
-        err?.message ?? err,
-      );
-      // Optionally store audit log about email failure
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+
+      this.logger.warn(`Welcome email failed for ${user.email}`, errorMessage);
+
       await this.prisma.auditLog.create({
         data: {
           userId: callerId,
@@ -100,7 +86,7 @@ export class UsersService {
           resourceId: user.id,
           changes: {
             reason: 'welcome_email_failed',
-            error: String(err?.message ?? err),
+            error: errorMessage,
           },
         },
       });
@@ -110,7 +96,6 @@ export class UsersService {
     return rest;
   }
 
-  // List users with filters and pagination
   async findAll(query: QueryUsersDto) {
     const page = parseInt(query.page || '1', 10);
     const limit = Math.min(parseInt(query.limit || '20', 10), 100);
@@ -126,26 +111,16 @@ export class UsersService {
       ];
     }
 
-    // -------- Handle fields projection --------
-    let selectedFields: Record<string, boolean> = { id: true }; // always include id
+    let selectedFields: Record<string, boolean> = { id: true };
     if (query.fields) {
-      const fields = query.fields.split(',').map((f) => f.trim());
-      fields.forEach((field) => {
-        if (field.length > 0) {
-          selectedFields[field] = true;
-        }
+      query.fields.split(',').map(f => f.trim()).forEach(field => {
+        if (field) selectedFields[field] = true;
       });
     }
 
     const [total, data] = await this.prisma.$transaction([
       this.prisma.user.count({ where }),
-      this.prisma.user.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { createdAt: 'desc' },
-        select: selectedFields,
-      }),
+      this.prisma.user.findMany({ where, skip, take: limit, orderBy: { createdAt: 'desc' }, select: selectedFields }),
     ]);
 
     return {
@@ -154,42 +129,24 @@ export class UsersService {
     };
   }
 
-  // Get single user (public fields)
   async findOne(id: string) {
     const user = await this.prisma.user.findUnique({
       where: { id },
       select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        phone: true,
-        role: true,
-        isActive: true,
-        createdAt: true,
-        updatedAt: true,
+        id: true, email: true, firstName: true, lastName: true,
+        phone: true, role: true, isActive: true,
+        createdAt: true, updatedAt: true,
       },
     });
     if (!user) throw new NotFoundException('User not found');
     return user;
   }
 
-  // Update user - self or admin/superadmin
-  async update(
-    id: string,
-    dto: UpdateUserDto,
-    callerId: string,
-    callerRole: Role,
-  ) {
-    // If caller is not the user and not admin/superadmin -> forbidden
+  async update(id: string, dto: UpdateUserDto, callerId: string, callerRole: Role) {
     if (callerId !== id && !['SUPERADMIN', 'ADMIN'].includes(callerRole)) {
-      throw new ForbiddenException(
-        'Insufficient permissions to update this user',
-      );
+      throw new ForbiddenException('Insufficient permissions to update this user');
     }
 
-    // If trying to change protected fields (role, password) -> disallow here
-    // Role changes should go through changeRole()
     const updated = await this.prisma.user.update({
       where: { id },
       data: {
@@ -197,15 +154,7 @@ export class UsersService {
         lastName: dto.lastName,
         phone: dto.phone,
       },
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        phone: true,
-        role: true,
-        isActive: true,
-      },
+      select: { id: true, email: true, firstName: true, lastName: true, phone: true, role: true, isActive: true },
     });
 
     await this.prisma.auditLog.create({
@@ -221,53 +170,19 @@ export class UsersService {
     return updated;
   }
 
-  // Change role with strict rules
-  async changeRole(
-    targetUserId: string,
-    dto: ChangeRoleDto,
-    callerId: string,
-    callerRole: Role,
-  ) {
-    const target = await this.prisma.user.findUnique({
-      where: { id: targetUserId },
-    });
+  async changeRole(targetUserId: string, dto: ChangeRoleDto, callerId: string, callerRole: Role) {
+    const target = await this.prisma.user.findUnique({ where: { id: targetUserId } });
     if (!target) throw new NotFoundException('Target user not found');
 
-    // No one can create SUPERADMIN (except seed), and role change to SUPERADMIN is forbidden
-    if (dto.role === Role.SUPERADMIN) {
-      throw new ForbiddenException('Cannot assign SUPERADMIN role');
-    }
-
-    // Only SUPERADMIN can assign ADMIN
-    if (dto.role === Role.ADMIN && callerRole !== Role.SUPERADMIN) {
-      throw new ForbiddenException('Only SUPERADMIN can assign ADMIN role');
-    }
-
-    // ADMIN cannot assign ADMIN or SUPERADMIN
-    if (
-      callerRole === Role.ADMIN &&
-      ['ADMIN', 'SUPERADMIN'].includes(dto.role)
-    ) {
-      throw new ForbiddenException(
-        'Admin cannot assign ADMIN or SUPERADMIN roles',
-      );
-    }
-
-    // Prevent downgrading a SUPERADMIN user (if somehow exists)
-    if (target.role === Role.SUPERADMIN && callerRole !== Role.SUPERADMIN) {
-      throw new ForbiddenException('Cannot change role of SUPERADMIN');
-    }
+    if (dto.role === Role.SUPERADMIN) throw new ForbiddenException('Cannot assign SUPERADMIN role');
+    if (dto.role === Role.ADMIN && callerRole !== Role.SUPERADMIN) throw new ForbiddenException('Only SUPERADMIN can assign ADMIN role');
+    if (callerRole === Role.ADMIN && ['ADMIN','SUPERADMIN'].includes(dto.role)) throw new ForbiddenException('Admin cannot assign ADMIN or SUPERADMIN roles');
+    if (target.role === Role.SUPERADMIN && callerRole !== Role.SUPERADMIN) throw new ForbiddenException('Cannot change role of SUPERADMIN');
 
     const updated = await this.prisma.user.update({
       where: { id: targetUserId },
       data: { role: dto.role },
-      select: {
-        id: true,
-        email: true,
-        role: true,
-        firstName: true,
-        lastName: true,
-      },
+      select: { id: true, email: true, role: true, firstName: true, lastName: true },
     });
 
     await this.prisma.auditLog.create({
@@ -283,23 +198,11 @@ export class UsersService {
     return updated;
   }
 
-  // Soft delete (deactivate)
   async softDelete(id: string, callerId: string, callerRole: Role) {
-    // Only admin/superadmin can deactivate; only superadmin can deactivate admins
     const target = await this.prisma.user.findUnique({ where: { id } });
     if (!target) throw new NotFoundException('User not found');
-
-    if (!['SUPERADMIN', 'ADMIN'].includes(callerRole)) {
-      throw new ForbiddenException(
-        'Insufficient permissions to deactivate user',
-      );
-    }
-
-    if (target.role === Role.ADMIN && callerRole !== Role.SUPERADMIN) {
-      throw new ForbiddenException(
-        'Only SUPERADMIN can deactivate ADMIN users',
-      );
-    }
+    if (!['SUPERADMIN', 'ADMIN'].includes(callerRole)) throw new ForbiddenException('Insufficient permissions to deactivate user');
+    if (target.role === Role.ADMIN && callerRole !== Role.SUPERADMIN) throw new ForbiddenException('Only SUPERADMIN can deactivate ADMIN users');
 
     const updated = await this.prisma.user.update({
       where: { id },
@@ -308,30 +211,17 @@ export class UsersService {
     });
 
     await this.prisma.auditLog.create({
-      data: {
-        userId: callerId,
-        action: 'DEACTIVATE_USER',
-        resource: 'User',
-        resourceId: id,
-        changes: { previousActive: target.isActive, newActive: false },
-      },
+      data: { userId: callerId, action: 'DEACTIVATE_USER', resource: 'User', resourceId: id, changes: { previousActive: target.isActive, newActive: false } },
     });
 
     return updated;
   }
 
-  // Activate user (reactivate)
   async activate(id: string, callerId: string, callerRole: Role) {
     const target = await this.prisma.user.findUnique({ where: { id } });
     if (!target) throw new NotFoundException('User not found');
-
-    if (!['SUPERADMIN', 'ADMIN'].includes(callerRole)) {
-      throw new ForbiddenException('Insufficient permissions to activate user');
-    }
-
-    if (target.role === Role.ADMIN && callerRole !== Role.SUPERADMIN) {
-      throw new ForbiddenException('Only SUPERADMIN can activate ADMIN users');
-    }
+    if (!['SUPERADMIN', 'ADMIN'].includes(callerRole)) throw new ForbiddenException('Insufficient permissions to activate user');
+    if (target.role === Role.ADMIN && callerRole !== Role.SUPERADMIN) throw new ForbiddenException('Only SUPERADMIN can activate ADMIN users');
 
     const updated = await this.prisma.user.update({
       where: { id },
@@ -340,13 +230,7 @@ export class UsersService {
     });
 
     await this.prisma.auditLog.create({
-      data: {
-        userId: callerId,
-        action: 'ACTIVATE_USER',
-        resource: 'User',
-        resourceId: id,
-        changes: { previousActive: target.isActive, newActive: true },
-      },
+      data: { userId: callerId, action: 'ACTIVATE_USER', resource: 'User', resourceId: id, changes: { previousActive: target.isActive, newActive: true } },
     });
 
     return updated;
