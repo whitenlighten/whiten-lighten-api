@@ -70,7 +70,7 @@ export class ClinicalNotesController {
   // 4. Add note suggestion (Nurse)
   // =====================
   @Post('/suggestions')
-  @Roles(Role.NURSE)
+  @Roles(Role.NURSE, Role.SUPERADMIN)
   @ApiOperation({ summary: 'Add a clinical note suggestion' })
   @ApiResponse({ status: 201, description: 'Suggestion added successfully' })
   async addSuggestion(
