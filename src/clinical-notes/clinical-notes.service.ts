@@ -18,7 +18,8 @@ export class ClinicalNotesService {
     role: Role,
     dto: { observations?: string; doctorNotes?: string; treatmentPlan?: string },
   ) {
-    if (!["DOCTOR", "ADMIN", "SUPERADMIN"].includes(role)) {
+    const allowedRoles = new Set<Role>([Role.DOCTOR, Role.ADMIN, Role.SUPERADMIN]);
+    if (!allowedRoles.has(role)) {
       throw new ForbiddenException('Only doctors or admins can add clinical notes');
     }
 

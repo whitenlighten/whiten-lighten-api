@@ -130,7 +130,7 @@ export class PatientsController {
   @Get(':id/appointments')
   @Roles(Role.SUPERADMIN, Role.ADMIN, Role.DOCTOR, Role.FRONTDESK, Role.PATIENT)
   @ApiOperation({ summary: "Get patient's appointment history" })
-  async getPatientAppointments(@Param('id', ParseUUIDPipe) id: string, @GetUser() user: any) {
+  async getPatientAppointments(@Param('id') id: string, @GetUser() user: any) {
     return this.patientsService.findAppointments(id, user);
   }
 }
