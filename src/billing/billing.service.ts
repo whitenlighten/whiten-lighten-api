@@ -123,38 +123,70 @@ export class BillingService {
   // -------------------------
   // Payments
   // -------------------------
-  async addPayment(invoiceId: string, dto: AddPaymentDto, user: any) {
-    this.assertCanManageInvoices(user);
+async addPayment(invoiceId: string, dto: AddPaymentDto, user: any) {
+  this.assertCanManageInvoices(user);
 
-    if (dto.amount <= 0) throw new BadRequestException('Amount must be positive');
-    if (!(Object.values(PaymentMethod) as string[]).includes(dto.method)) {
-      throw new BadRequestException('Invalid payment method');
-    }
 
-    try {
-      const invoice = await this.prisma.invoice.findUnique({
-        where: { id: invoiceId },
-        include: { payments: true },
-      });
-      if (!invoice) throw new NotFoundException('Invoice not found');
+  // : Check if invoice exists
+  const invoice = await this.prisma.invoice.findUnique({
+    where: { id: invoiceId },
+    include: { payments: true },
+  });
 
-      const alreadyPaid = invoice.payments.filter(p => p.status === 'SUCCESS').reduce((sum, p) => sum + p.amount, 0);
-      const newTotal = alreadyPaid + dto.amount;
-
-      const payment = await this.prisma.payment.create({
-        data: { ...dto, invoiceId, status: 'SUCCESS', paidAt: new Date() },
-      });
-
-      if (newTotal >= invoice.amount) {
-        await this.prisma.invoice.update({ where: { id: invoiceId }, data: { status: 'PAID', paidAt: new Date() } });
-      }
-
-      return payment;
-    } catch (err: any) {
-      if (err.code === 'P2002') throw new BadRequestException('Duplicate transaction reference');
-      throw err instanceof NotFoundException || err instanceof BadRequestException ? err : new InternalServerErrorException('Failed to add payment');
-    }
+  if (!invoice) {
+    throw new NotFoundException(`Invoice with ID ${invoiceId} not found`);
   }
+  // : Validate incoming payment details
+  if (dto.amount <= 0) {
+    throw new BadRequestException('Amount must be positive');
+  }
+  if (!(Object.values(PaymentMethod) as string[]).includes(dto.method)) {
+    throw new BadRequestException('Invalid payment method');
+  }
+
+
+  // ✅ Step 3: Calculate payments already made
+  const alreadyPaid = invoice.payments
+    .filter(p => p.status === 'SUCCESS')
+    .reduce((sum, p) => sum + p.amount, 0);
+
+  const newTotal = alreadyPaid + dto.amount;
+
+  try {
+    // ✅ Step 4: Create new payment record
+    const payment = await this.prisma.payment.create({
+      data: {
+        invoiceId,
+        amount: dto.amount,
+        method: dto.method,
+        gateway: dto.gateway,
+        transactionRef: dto.transactionRef,
+        note: dto.note,
+        status: 'SUCCESS',
+        paidAt: new Date(),
+      },
+    });
+
+    // ✅ Step 5: Update invoice status if fully paid
+    if (newTotal >= invoice.amount) {
+      await this.prisma.invoice.update({
+        where: { id: invoiceId },
+        data: {
+          status: 'PAID',
+          paidAt: new Date(),
+        },
+      });
+    }
+
+    return payment;
+  } catch (err: any) {
+    if (err.code === 'P2002') {
+      throw new BadRequestException('Duplicate transaction reference');
+    }
+    throw new InternalServerErrorException('Failed to add payment');
+  }
+}
+
 
   async listPayments(query: QueryPaymentsDto, user: any) {
     this.assertCanManageInvoices(user);

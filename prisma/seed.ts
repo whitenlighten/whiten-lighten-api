@@ -21,6 +21,7 @@ async function main() {
           role: 'SUPERADMIN',
           isActive: true,
           emailVerified: true,
+          phone: '0000000000', 
         },
       });
       console.log('✅ Superadmin seeded:', email);
