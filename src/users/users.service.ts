@@ -42,7 +42,10 @@ export class UsersService {
       throw new BadRequestException('Email or phone already in use');
     }
 
-    const hashed = await bcrypt.hash(dto.password, 12);
+   
+    const rawPassword = dto.password; // keep this safe for email
+    const hashed = await bcrypt.hash(rawPassword, 12);
+
 
     const user = await this.prisma.user.create({
       data: {
@@ -68,10 +71,10 @@ export class UsersService {
     // --- Fixed error handling ---
     try {
       await this.mailService.sendWelcomeEmail(
-        user.email,
+         user.email,
         `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim(),
-        user.role,
-        undefined,
+         user.role,
+         rawPassword,   // send plain passw
       );
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err);
