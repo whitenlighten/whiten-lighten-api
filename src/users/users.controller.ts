@@ -42,10 +42,9 @@ export class UsersController {
   @Get()
   @Roles(Role.SUPERADMIN, Role.ADMIN)
   @ApiOperation({ summary: 'List users (paginated). Admin/Superadmin only' })
-  async list(@Query() query: QueryUsersDto) {
+  async findAll(@Query() query: QueryUsersDto) {
     return this.users.findAll(query);
   }
-
   // Get single user
   @Get(':id')
   @Roles(Role.SUPERADMIN, Role.ADMIN, Role.DOCTOR, Role.NURSE, Role.FRONTDESK)
