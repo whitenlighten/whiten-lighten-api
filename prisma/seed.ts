@@ -6,7 +6,7 @@ async function main() {
   const prisma = new PrismaClient();
 
   const email = process.env.SUPERADMIN_EMAIL || 'Superadminfire@gmail.com';
-  const rawPassword = process.env.SUPERADMIN_PASSWORD || 'Rice&Yam911';
+  const rawPassword = process.env.SUPERADMIN_PASSWORD || 'Password4Admin';
 
   try {
     const existing = await prisma.user.findUnique({ where: { email } });

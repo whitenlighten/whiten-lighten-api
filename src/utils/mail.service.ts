@@ -89,44 +89,64 @@ export class MailService {
 
   // This method is correctly using the generic sendMail
   async sendWelcomeEmail(
-    to: string,
-    name: string | undefined,
-    role: string,
-    maybePassword?: string,
-  ) {
-    const subject = `🎉 Welcome to Whiten Lighten Clinic — ${role} 🎉`;
-    const text = `${name ?? ''}, your account has been created with role: ${role}.${maybePassword ? ` Temporary password: ${maybePassword}` : ''}`;
-    const html = `
-      <div style="font-family: 'Segoe UI', Arial, sans-serif; background: #f9f9fc; padding: 32px;">
-        <div style="max-width: 480px; margin: auto; background: #fff; border-radius: 12px; box-shadow: 0 2px 8px #e0e0e0; padding: 32px;">
-          <div style="text-align: center;">
-            <img src="https://img.icons8.com/color/96/000000/tooth.png" alt="Clinic Logo" style="margin-bottom: 16px;" />
-            <h2 style="color: #2d6cdf; margin-bottom: 8px;">Welcome${name ? `, ${name}` : ''}!</h2>
-            <p style="font-size: 1.1em; color: #444;">We're excited to have you join <strong>CelebDent Clinic</strong> as a <span style="color: #2d6cdf;">${role}</span>.</p>
-          </div>
-          ${
-            maybePassword
-              ? `
-            <div style="margin: 24px 0; text-align: center;">
-              <p style="color: #222; font-weight: 500;">Your temporary password:</p>
-              <div style="background: #f1f6ff; border-radius: 6px; padding: 12px; font-size: 1.2em; letter-spacing: 1px; color: #2d6cdf; display: inline-block;">
-                <code>${maybePassword}</code>
-              </div>
-              <p style="font-size: 0.95em; color: #888;">Please change it after your first login for security.</p>
-            </div>
-          `
-              : ''
-          }
-          <hr style="margin: 32px 0; border: none; border-top: 1px solid #eee;" />
-          <p style="color: #666; font-size: 0.98em; text-align: center;">
-            If you have any questions, reply to this email or contact our support team.<br/>
-            <span style="color: #2d6cdf;">Welcome aboard!</span>
+  to: string,
+  name: string | undefined,
+  role: string,
+  maybePassword?: string,
+) {
+  const subject = `🎉 Welcome to Whiten Lighten Clinic — ${role} 🎉`;
+
+  const text = `
+Hi ${name ?? ''},
+
+Your account has been created successfully.
+
+Username: ${to}
+${maybePassword ? `Password: ${maybePassword}` : ''}
+
+Please log in and change your password immediately.
+  `;
+
+  const html = `
+    <div style="font-family: 'Segoe UI', Arial, sans-serif; background: #f9f9fc; padding: 32px;">
+      <div style="max-width: 480px; margin: auto; background: #fff; border-radius: 12px; box-shadow: 0 2px 8px #e0e0e0; padding: 32px;">
+        <div style="text-align: center;">
+          <img src="https://img.icons8.com/color/96/000000/tooth.png" alt="Clinic Logo" style="margin-bottom: 16px;" />
+          <h2 style="color: #2d6cdf; margin-bottom: 8px;">Welcome${name ? `, ${name}` : ''}!</h2>
+          
+          <p style="font-size: 1.1em; color: #444;">
+            We're excited to have you join <strong>CelebDent Clinic</strong> as a 
+            <span style="color: #2d6cdf;">${role}</span>.
           </p>
         </div>
+
+        <div style="margin: 24px 0; text-align: center;">
+          <p style="color: #222; font-weight: 500;">Your login credentials:</p>
+          <div style="background: #f1f6ff; border-radius: 6px; padding: 12px; font-size: 1.1em; color: #2d6cdf; text-align: left; display: inline-block;">
+            <p><strong>Username:</strong> ${to}</p>
+            ${
+              maybePassword
+                ? `<p><strong>Password:</strong> ${maybePassword}</p>`
+                : ''
+            }
+          </div>
+          <p style="font-size: 0.95em; color: #888;">
+            Please log in and change your password immediately for security.
+          </p>
+        </div>
+
+        <hr style="margin: 32px 0; border: none; border-top: 1px solid #eee;" />
+        <p style="color: #666; font-size: 0.98em; text-align: center;">
+          If you have any questions, reply to this email or contact our support team.<br/>
+          <span style="color: #2d6cdf;">Welcome aboard!</span>
+        </p>
       </div>
-    `;
-    return this.sendMail(to, subject, text, html);
-  }
+    </div>
+  `;
+
+  return this.sendMail(to, subject, text, html);
+}
+
 
   // This method is correctly using the generic sendMail
   async sendAccountApprovalEmail(to: string, name?: string) {

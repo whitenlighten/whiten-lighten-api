@@ -55,7 +55,6 @@ export class AppointmentsService {
           patient.firstName,
           patient.patientId,
           appointmentDateTime,
-          dto.doctorId ? `Dr. ${dto.doctorId}` : undefined,
         );
 
         return appointment;
@@ -115,7 +114,7 @@ export class AppointmentsService {
       patient.firstName,
       patient.patientId,
       appointmentDateTime,
-      dto.doctorId ? `Dr. ${dto.doctorId}` : undefined,
+
     );
 
     // Send notification to frontdesk (fire & forget)

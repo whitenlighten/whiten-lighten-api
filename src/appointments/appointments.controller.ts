@@ -10,7 +10,6 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { AppointmentsService } from './appointments.service';
 import {
   CreateAppointmentDto,
   PublicBookAppointmentDto,
@@ -21,6 +20,7 @@ import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { Roles } from 'src/auth/decorator/roles.decorator';
 import { Role } from '@prisma/client';
+import { AppointmentsService } from './appointments.service';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @ApiTags('appointments')
 @Controller('appointments')
