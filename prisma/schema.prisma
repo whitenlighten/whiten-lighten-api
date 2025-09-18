@@ -224,6 +224,15 @@ model User {
   specialization String?
   isActive      Boolean   @default(true)
   emailVerified Boolean   @default(false)
+
+  // --- NEW FIELDS (for OAuth + 2FA) ---
+  oauthProvider    String?   // e.g., "google"
+  oauthId          String?   // provider-specific id
+  twoFactorEnabled Boolean   @default(false)
+  twoFactorSecret  String?   // base32 secret for authenticator app
+  twoFactorTempSecret String?                     // ADDED (temporary during setup)
+
+
   lastLogin     DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt

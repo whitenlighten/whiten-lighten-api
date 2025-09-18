@@ -1,5 +1,15 @@
 // src/modules/auth/auth.controller.ts
-import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
+
+import {
+  Body,
+  Controller,
+  Get,
+  Post,
+  Req,
+  UseGuards,
+  Res,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -11,8 +21,10 @@ import {
   ResetPasswordDto,
   TokensResponseDto,
 } from './dto/auth.dto';
+import { TwoFaLoginDto } from './dto/2fa-login.dto';
 import { Public } from 'src/common/decorator/public.decorator';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import type { Response } from 'express';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -70,7 +82,7 @@ export class AuthController {
   }
 
   @ApiBearerAuth('JWT-auth')
-  @UseGuards(JwtAuthGuard) // 👈 protect with JWT
+  @UseGuards(JwtAuthGuard)
   @Get('me')
   @ApiOperation({ summary: 'Get current logged in user (from access token)' })
   async me(@Req() Request: any) {
@@ -85,11 +97,9 @@ export class AuthController {
         lastName: true,
         role: true,
         isActive: true,
-        auditLogs: false,
         emailVerified: true,
         phone: true,
         updatedAt: true,
-        refreshTokens: false,
         lastLogin: true,
         deletedAt: true,
         createdAt: true,
@@ -97,5 +107,39 @@ export class AuthController {
     });
 
     return user;
+  }
+
+  /* ------------------ 2FA Endpoints ------------------ */
+
+  @ApiBearerAuth('JWT-auth')
+  @UseGuards(JwtAuthGuard)
+  @Get('2fa/generate-qr-code')
+  @ApiOperation({ summary: 'Generate QR code for 2FA setup' })
+  async generateQrCode(@Req() req: any, @Res() res: Response) {
+    // FIX: Correctly access the user ID from the JWT payload
+    const { userId } = req.user;
+    
+    const { otpAuthUrl } = await this.auth.generate2FASecret(userId);
+    res.setHeader('Content-Type', 'image/png');
+    return this.auth.pipeQrCodeStream(res, otpAuthUrl);
+  }
+
+  @ApiBearerAuth('JWT-auth')
+  @UseGuards(JwtAuthGuard)
+  @Post('2fa/enable')
+  @ApiOperation({ summary: 'Enable 2FA for the user' })
+  async enable2FA(@Req() req: any, @Body('twoFactorAuthenticationCode') code: string) {
+    // FIX: Correctly access the user ID from the JWT payload
+    const { userId } = req.user;
+    
+    return this.auth.enable2FA(userId, code);
+  }
+
+  @Public()
+  @Post('2fa/login')
+  @ApiOperation({ summary: 'Complete login with 2FA code' })
+  @ApiResponse({ status: 200, type: TokensResponseDto })
+  async twoFaLogin(@Body() dto: TwoFaLoginDto) {
+    return this.auth.validate2FaLogin(dto.email, dto.twoFactorAuthenticationCode);
   }
 }
