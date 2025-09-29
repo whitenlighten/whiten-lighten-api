@@ -217,9 +217,10 @@ model User {
   id            String    @id @default(uuid())
   email         String    @unique
   password      String
+  
   firstName     String?
   lastName      String?
-  phone         String?
+  phone         String? @unique
   role          Role
   specialization String?
   isActive      Boolean   @default(true)
@@ -252,6 +253,7 @@ model User {
   createdNoteSuggestions NoteSuggestion[] @relation("NoteSuggestionCreatedBy")
   approvedNoteSuggestions NoteSuggestion[] @relation("NoteSuggestionApprovedBy")
   ClinicalNote ClinicalNote[] @relation("PatientApprovedBy")
+  
 }
 
 // New Model for Refresh Tokens

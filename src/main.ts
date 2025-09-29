@@ -17,7 +17,7 @@ async function bootstrap() {
     new ValidationPipe({
       transform: true, // enable class-transformer to use @Exclude/@Expose
       whitelist: true, // remove fields not in DTO
-      forbidNonWhitelisted: true, // throw error if unknown fields are sent
+      forbidNonWhitelisted: false, // throw error if unknown fields are sent
     }),
   );
 

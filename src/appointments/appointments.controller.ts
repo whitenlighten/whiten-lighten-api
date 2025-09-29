@@ -14,6 +14,7 @@ import {
   CreateAppointmentDto,
   PublicBookAppointmentDto,
   UpdateAppointmentDto,
+  QueryAppointmentsDto,
 } from './appointment.dto';
 import { Public } from 'src/common/decorator/public.decorator';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
@@ -46,7 +47,7 @@ export class AppointmentsController {
   @ApiBearerAuth('JWT-auth')
   @Roles(Role.SUPERADMIN, Role.ADMIN, Role.FRONTDESK, Role.DOCTOR, Role.NURSE) 
   @Get()
-  async findAll(@Query() query: any) {
+  async findAll(@Query() query: QueryAppointmentsDto) {
     return this.appointmentsService.findAll(query);
   }
 

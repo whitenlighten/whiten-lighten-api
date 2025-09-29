@@ -17,7 +17,7 @@ import { PatientsService } from './patients.service';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Role } from '@prisma/client';
 import { Roles } from 'src/auth/decorator/roles.decorator';
-import { CreatePatientDto, QueryPatientsDto, UpdatePatientDto } from './patients.dto';
+import { CreatePatientDto, QueryPatientsDto, SelfRegisterPatientDto, UpdatePatientDto } from './patients.dto';
 import { GetUser } from 'src/common/decorator/get-user.decorator';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { Public } from 'src/common/decorator/public.decorator';
@@ -50,7 +50,7 @@ export class PatientsController {
     status: 201,
     description: 'Patient self-registered (PENDING).',
   })
-  async selfRegister(@Body() dto: CreatePatientDto) {
+  async selfRegister(@Body() dto: SelfRegisterPatientDto) {
     return this.patientsService.selfRegister(dto);
   }
 
@@ -120,8 +120,8 @@ export class PatientsController {
   @Delete(':id')
   @Roles(Role.SUPERADMIN, Role.ADMIN)
   @ApiOperation({ summary: 'Archive patient (Admin only)' })
-  async archivePatient(@Param('id', ParseUUIDPipe) id: string, @GetUser('id') deletedBy: string) {
-    return this.patientsService.archive(id, deletedBy);
+  async archivePatient(@Param('id') patientId: string, @GetUser('id') deletedBy: string) {
+    return this.patientsService.archive(patientId, deletedBy);
   }
 
   // =====================

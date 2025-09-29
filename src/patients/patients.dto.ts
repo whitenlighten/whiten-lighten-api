@@ -65,8 +65,15 @@ export class SelfRegisterPatientDto {
   @ApiProperty({ example: '+2347012345678' })
   @IsOptional()
   @IsPhoneNumber('NG')
-  phone?: string;
+  phone!: string;
+
+  @ApiPropertyOptional({ example: 'MALE', enum: Gender })
+  @IsOptional()
+  // Use IsEnum to validate values match Gender enum
+  @IsString()
+  gender?: Gender;
 }
+
 
 export class UpdatePatientDto extends PartialType(CreatePatientDto) {}
 

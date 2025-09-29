@@ -187,19 +187,66 @@ export class AppointmentsService {
     });
   }
 
-  async findAll(query: QueryAppointmentsDto, projection?: any) {
-    return this.prisma.appointment.findMany({
-      where: { ...query },
-      select: projection || undefined,
-    });
+ async findAll(query: QueryAppointmentsDto) {
+  const page = Math.max(query.page || 1, 1);
+  const limit = Math.min(Math.max(query.limit || 20, 1), 100);
+  const skip = (page - 1) * limit;
+
+  // Build a safe 'where' object from the query DTO
+  const where: any = {};
+  if (query.status) {
+    where.status = query.status;
   }
+  if (query.doctorId) {
+    where.doctorId = query.doctorId;
+  }
+  if (query.patientId) {
+    where.patientId = query.patientId;
+  }
+  if (query.q) {
+    where.OR = [
+      { reason: { contains: query.q, mode: 'insensitive' } },
+      { service: { contains: query.q, mode: 'insensitive' } },
+    ];
+  }
+
+  // Use a transaction to get the total count and the paginated data
+  const [total, data] = await this.prisma.$transaction([
+    this.prisma.appointment.count({ where }),
+    this.prisma.appointment.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: { date: 'desc' },
+      include: {
+        patient: true, // Return all patient scalar fields
+        doctor: {
+          // Select specific fields for doctor to avoid exposing sensitive info
+          select: { id: true, firstName: true, lastName: true, email: true, specialization: true },
+        },
+      },
+    }),
+  ]);
+
+  return {
+    meta: {
+      total,
+      page,
+      limit,
+      pages: Math.ceil(total / limit),
+    },
+    data,
+  };
+}
 
   async findOne(id: string, projection?: any) {
     return this.prisma.appointment.findUnique({
       where: { id },
       include: {
-        patient: true,
-        doctor: true,
+        patient: true, // Return all patient scalar fields
+        doctor: { // Select specific fields for doctor
+          select: { id: true, firstName: true, lastName: true, email: true, specialization: true },
+        },
       },
     });
   }

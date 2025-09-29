@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsOptional, IsDateString, IsEnum, IsNotEmpty, IsEmail } from 'class-validator';
+import { IsString, IsOptional, IsDateString, IsEnum, IsNotEmpty, IsEmail, IsInt, Min, Max } from 'class-validator';
 import { AppointmentStatus } from './appointments.enum';
 
 /**
@@ -120,6 +120,7 @@ export class UpdateAppointmentDto {
 /**
  * DTO for querying appointments (filter/search)
  */
+
 export class QueryAppointmentsDto {
   @ApiPropertyOptional({ enum: AppointmentStatus })
   @IsOptional()
@@ -135,6 +136,24 @@ export class QueryAppointmentsDto {
   @IsOptional()
   @IsString()
   patientId?: string;
+
+  @ApiPropertyOptional({ description: 'Text search query for reason or service' })
+  @IsOptional()
+  @IsString()
+  q?: string; // Missing: Property for text search
+
+  @ApiPropertyOptional({ description: 'Page number', default: 1 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  page?: number; // Missing: Property for pagination
+
+  @ApiPropertyOptional({ description: 'Number of items per page', default: 20 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number; // Missing: Property for pagination
 
   @ApiPropertyOptional({ description: 'Comma-separated list of fields to project' })
   @IsOptional()

@@ -2,9 +2,9 @@
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
-async function main() {
-  const prisma = new PrismaClient();
+const prisma = new PrismaClient();
 
+async function main() {
   const email = process.env.SUPERADMIN_EMAIL || 'Superadmin@gmail.com';
   const rawPassword = process.env.SUPERADMIN_PASSWORD || 'Password4Admin1';
 
@@ -54,6 +54,6 @@ main()
     process.exit(1);
   })
   .finally(async () => {
-    // no explicit disconnect to make script safe in different environments
-    process.exit(0);
+    // Disconnect Prisma Client
+    await prisma.$disconnect();
   });

@@ -3,10 +3,11 @@ import {
   ForbiddenException,
   NotFoundException,
   BadRequestException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { Role, PatientStatus, RegistrationType } from '@prisma/client';
 import { PrismaService } from 'prisma/prisma.service';
-import { CreatePatientDto, QueryPatientsDto, UpdatePatientDto } from './patients.dto';
+import { CreatePatientDto, QueryPatientsDto, SelfRegisterPatientDto, UpdatePatientDto } from './patients.dto';
 import { getPatientId } from 'src/utils/patient-id.util';
 import { MailService } from 'src/utils/mail.service';
 
@@ -61,16 +62,39 @@ export class PatientsService {
    * SELF-REGISTER patient
    * =============================
    */
-  async selfRegister(createDto: CreatePatientDto) {
-    if (!createDto.email) {
-      throw new BadRequestException('Email is required');
-    }
+ async selfRegister(createDto: SelfRegisterPatientDto) {
+  if (!createDto.email) {
+    throw new BadRequestException('Email is required');
+  }
 
-    // 1. First, create a User with role PATIENT
+   // Check for an existing user with the same email or phone number
+  const existingUser = await this.prisma.user.findFirst({
+    where: {
+      OR: [
+        { email: createDto.email.toLowerCase() },
+        { phone: createDto.phone }
+      ]
+    },
+    include: {  Patient: true },
+  }); 
+
+  if (existingUser) {
+    if (existingUser.email === createDto.email.toLowerCase()) {
+      throw new BadRequestException('A user with this email already exists.');
+    }
+    if (existingUser.phone === createDto.phone) {
+      throw new BadRequestException('A user with this phone number already exists.');
+    }
+    // If the user exists but is not a patient, this is an unexpected state, throw an error or handle
+    throw new BadRequestException('A user with this email already exists but is not a patient.');
+  } 
+
+  // Scenario 2: User does not exist, proceed with creation
+  try {
     const user = await this.prisma.user.create({
       data: {
-        email: createDto.email,
-        password: '', // or null if you want OTP/Google login later
+        email: createDto.email.toLowerCase(),
+        password: '',
         role: 'PATIENT',
         phone: createDto.phone,
         firstName: createDto.firstName,
@@ -78,50 +102,63 @@ export class PatientsService {
       },
     });
 
-    // 2. Then, create Patient linked to that User
     const patient = await this.prisma.patient.create({
       data: {
         firstName: createDto.firstName,
         lastName: createDto.lastName,
-        email: createDto.email,
+        email: createDto.email.toLowerCase(),
         phone: createDto.phone,
+        gender: createDto.gender,
         status: PatientStatus.PENDING,
         patientId: await getPatientId(),
         registrationType: RegistrationType.SELF,
-        userId: user.id, // link patient → user
+        userId: user.id,
       },
     });
 
     return patient;
+  } catch (error) {
+    console.error('Error during self-registration:', error);
+    throw new InternalServerErrorException('Failed to self-register patient. Please try again later.');
   }
+}
 
   /**
    * =============================
    * APPROVE self-registered patient
    * =============================
    */
-  async approve(patientId: string, user: any) {
+  async approve(id: string, user: any) {
     if (user.role === Role.PATIENT) {
       throw new ForbiddenException('Patients cannot approve other patients');
     }
 
-    const patient = await this.prisma.patient.findUnique({ where: { patientId } });
+    const patient = await this.prisma.patient.findUnique({ where: { id: id } });
     if (!patient) throw new NotFoundException('Patient not found');
     if (patient.status !== PatientStatus.PENDING) {
       throw new BadRequestException('Only pending patients can be approved');
     }
 
     // Send mail after approval
+    try {
     await this.mailService.sendPatientApproval(
       patient.email,
       `${patient.firstName} ${patient.lastName}`,
     );
-
-    return this.prisma.patient.update({
-      where: { patientId },
-      data: { status: PatientStatus.ACTIVE, approvedById: user.id, approvedAt: new Date() },
-    });
+    console.log(`Approval email successfully sent to ${patient.email}`);
+  } catch (error) {
+    console.error('Failed to send email:', error);
+    // This will provide a more specific error message to help you debug.
+    // The error object will contain details about the failure (e.g., wrong password, connection refused).
+    throw new BadRequestException('Failed to send patient approval email. Check mail service configuration or network connection.');
   }
+
+  // If email sending is successful or handled, proceed to update the patient status
+  return this.prisma.patient.update({
+    where: { id: patient.id },
+    data: { status: PatientStatus.ACTIVE, approvedById: user.id, approvedAt: new Date() },
+  });
+}
 
   /**
    * =============================
@@ -210,9 +247,9 @@ export class PatientsService {
     });
     if (!patient) throw new NotFoundException('Patient not found');
 
-    // if (user.role === Role.PATIENT && user.id !== patient.id) {
-    //     throw new ForbiddenException('You can only view your own profile');
-    // }
+    if (user.role === Role.PATIENT && user.id !== patient.userId) {
+      throw new ForbiddenException('You can only view your own profile');
+    }
 
     return patient;
   }
@@ -222,11 +259,11 @@ export class PatientsService {
    * UPDATE patient details
    * =============================
    */
-  async update(id: string, updateDto: UpdatePatientDto, user: any) {
+  async update(id: string, updateDto: UpdatePatientDto, user: { id: string; role: Role }) {
     const patient = await this.prisma.patient.findUnique({ where: { id } });
     if (!patient) throw new NotFoundException('Patient not found');
 
-    if (user.role === Role.PATIENT && user.id !== patient.id) {
+    if (user.role === Role.PATIENT && user.id !== patient.userId) {
       throw new ForbiddenException('You can only update your own profile');
     }
 
@@ -264,17 +301,33 @@ export class PatientsService {
    * GET patient appointment history
    * =============================
    */
-  async findAppointments(id: string, user: any) {
+  async findAppointments(id: string, user: any, query: QueryPatientsDto) {
     const patient = await this.prisma.patient.findUnique({ where: { id } });
     if (!patient) throw new NotFoundException('Patient not found');
 
-    if (user.role === Role.PATIENT && user.id !== patient.id) {
+    if (user.role === Role.PATIENT && user.id !== patient.userId) {
       throw new ForbiddenException('You can only view your own appointments');
     }
 
-    return this.prisma.appointment.findMany({
-      where: { patientId: id },
-      orderBy: { date: 'desc' },
-    });
+    const page = parseInt(query.page || '1', 10);
+    const limit = Math.min(parseInt(query.limit || '20', 10), 100);
+    const skip = (page - 1) * limit;
+
+    const where = { patientId: id };
+
+    const [total, data] = await this.prisma.$transaction([
+      this.prisma.appointment.count({ where }),
+      this.prisma.appointment.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { date: 'desc' },
+      }),
+    ]);
+
+    return {
+      meta: { total, page, limit, pages: Math.ceil(total / limit) },
+      data,
+    };
   }
 }
