@@ -1,5 +1,5 @@
-import { ApiProperty, PartialType } from '@nestjs/swagger';
-import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
+import { IsNotEmpty, IsNumberString, IsOptional, IsString } from 'class-validator';
 
 export class CreateClinicalNoteDto {
   @ApiProperty()
@@ -26,3 +26,30 @@ export class CreateNoteSuggestionDto {
   @IsString()
   content!: string; // <-- mark as required
 }
+
+export class QueryClinicalNotesDto {
+  @ApiPropertyOptional({ example: '1' })
+  @IsOptional()
+  @IsNumberString()
+  page?: string;
+
+  @ApiPropertyOptional({ example: '20' })
+  @IsOptional()
+  @IsNumberString()
+  limit?: string;
+
+  @ApiPropertyOptional({ description: 'Search term for observations, notes, etc.' })
+  @IsOptional()
+  @IsString()
+  q?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Comma-separated fields to include (patientId,createdById,observations,doctorNotes,treatmentPlan,status,etc.)',
+    example: 'patientId,observations,doctorNotes',
+  })
+  @IsOptional()
+  @IsString()
+  fields?: string;
+}
+

@@ -303,6 +303,17 @@ export class PatientsService {
     });
   }
 
+   async getallarchived(user: any){ // Removed unused 'id'
+    if (![Role.SUPERADMIN, Role.ADMIN, Role.FRONTDESK, Role.SUPERADMIN].includes(user.role)) {
+      throw new ForbiddenException('You do not have permission to view archived patients.');
+    }
+    const archived = await this.prisma.patient.findMany({ where: { status: PatientStatus.ARCHIVED } });
+
+    if (archived.length === 0) throw new NotFoundException('Patient not found');
+
+    return archived;
+  }
+
   /**
    * =============================
    * GET patient appointment history

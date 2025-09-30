@@ -104,23 +104,22 @@ export class UsersService {
     const limit = Math.min(parseInt(query.limit || '20', 10), 100);
     const skip = (page - 1) * limit;
 
-    const where: any = {
-      // Exclude users with the PATIENT role
-      role: {
-        not: Role.PATIENT,
-      },
-    };
+    // Start with a base condition to always exclude patients.
+    const conditions: any[] = [{ role: { not: Role.PATIENT } }];
 
-    if (query.role) where.role = query.role;
+    // Add role filter if provided, but it won't override the patient exclusion.
+    if (query.role) {
+      conditions.push({ role: query.role });
+    }
+
+    // Add search query filter.
     if (query.q) {
-      // Combine search with the role exclusion
-      where.AND = [
-        { role: { not: Role.PATIENT } },
-        { OR: [
+      conditions.push({
+        OR: [
         { email: { contains: query.q, mode: 'insensitive' } },
         { firstName: { contains: query.q, mode: 'insensitive' } },
         { lastName: { contains: query.q, mode: 'insensitive' } },
-      ]}];
+      ]});
     }
 
     let selectedFields: Record<string, boolean> = { id: true };
@@ -129,6 +128,8 @@ export class UsersService {
         if (field) selectedFields[field] = true;
       });
     }
+
+    const where = { AND: conditions };
 
     const [total, data] = await this.prisma.$transaction([
       this.prisma.user.count({ where }),

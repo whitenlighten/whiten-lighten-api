@@ -6,10 +6,11 @@ import {
   Param,
   Body,
   UseGuards,
+  Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { ClinicalNotesService } from './clinical-notes.service';
-import { CreateClinicalNoteDto, UpdateClinicalNoteDto, CreateNoteSuggestionDto } from './clinical-notes.dto';
+import { CreateClinicalNoteDto, UpdateClinicalNoteDto, CreateNoteSuggestionDto, QueryClinicalNotesDto } from './clinical-notes.dto';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { Roles } from 'src/auth/decorator/roles.decorator';
 import { Role } from '@prisma/client';
@@ -66,6 +67,18 @@ export class ClinicalNotesController {
     return this.service.getNotes(patientId);
   }
 
+
+  @Get('/all') // <-- New path to resolve conflict, e.g., /clinical-notes/all?q=...
+  @Roles(Role.SUPERADMIN, Role.ADMIN, Role.DOCTOR)
+  @ApiOperation({ summary: 'Get ALL clinical notes across all patients (for Admin/Doctor)' })
+  @ApiResponse({ status: 200, description: 'Returns a paginated list of ALL clinical notes' })
+  async findAll(
+    @Query() query: QueryClinicalNotesDto,
+    @GetUser() user: any,
+  ) {
+    return this.service.findAll(query, user);
+  }
+
   // =====================
   // 4. Add note suggestion (Nurse)
   // =====================
@@ -80,7 +93,8 @@ export class ClinicalNotesController {
   ) {
     console.log({user})
     return this.service.addSuggestion(patientId, user.userId, user.role, dto);
-  }
+  } 
+ 
 
   // =====================
   // 5. Approve suggestion (Doctor/Admin/SuperAdmin)

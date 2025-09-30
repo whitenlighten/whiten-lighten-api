@@ -125,6 +125,14 @@ export class PatientsController {
     return this.patientsService.archive(id, user);
   }
 
+  
+  @Get('/archived/all') // Example route
+  @Roles(Role.SUPERADMIN, Role.ADMIN, Role.FRONTDESK)
+  @ApiOperation({ summary: 'Get all archived patients' })
+  async getAllArchived(@GetUser() user: any) {
+    return this.patientsService.getallarchived(user);
+  }
+
 
   // =====================
   // 9. Patient’s appointment history

@@ -2,6 +2,7 @@ import {  ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { PrismaService } from 'prisma/prisma.service';
 import { MailService } from 'src/utils/mail.service';
+import { QueryClinicalNotesDto } from './clinical-notes.dto';
 import { Injectable } from '@nestjs/common';
 
 @Injectable()
@@ -73,6 +74,53 @@ export class ClinicalNotesService {
       where: { patientId },
       orderBy: { createdAt: 'desc' },
     });
+
+  }
+
+  /**
+   * ===========================================
+   * GET all clinical notes (paginated, filtered)
+   * ===========================================
+   */
+  async findAll(query: QueryClinicalNotesDto, user: { role: Role }) {
+    // 1. Authorization
+    const allowedRoles = new Set<Role>([Role.DOCTOR, Role.ADMIN, Role.SUPERADMIN]);
+    if (!allowedRoles.has(user.role)) {
+      throw new ForbiddenException('You do not have permission to view all clinical notes.');
+    }
+
+    // 2. Pagination
+    const page = parseInt(query.page || '1', 10);
+    const limit = Math.min(parseInt(query.limit || '20', 10), 100); // Max 100 per page
+    const skip = (page - 1) * limit;
+
+    // 3. Filtering
+    const where: any = { status: 'APPROVED' }; // Base filter
+    if (query.q) {
+      where.OR = [
+        { observations: { contains: query.q, mode: 'insensitive' } },
+        { doctorNotes: { contains: query.q, mode: 'insensitive' } },
+        { treatmentPlan: { contains: query.q, mode: 'insensitive' } },
+      ];
+    }
+
+    // 4. Database query using a transaction for consistency
+    const [total, data] = await this.prisma.$transaction([
+      this.prisma.clinicalNote.count({ where }),
+      this.prisma.clinicalNote.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        // You can add field selection here if needed, similar to patients.service
+      }),
+    ]);
+
+    // 5. Return paginated response
+    return {
+      meta: { total, page, limit, pages: Math.ceil(total / limit) },
+      data,
+    };
   }
 
   /** Nurse adds note suggestion */
