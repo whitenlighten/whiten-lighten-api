@@ -226,7 +226,7 @@ export class PatientsService {
     });
     if (!patient) throw new NotFoundException('Patient not found');
 
-    if (user.role === Role.PATIENT && user.id !== patient.id) {
+    if (user.role === Role.PATIENT && user.id !== patient.userId) {
       throw new ForbiddenException('You can only view your own profile');
     }
 
@@ -247,7 +247,7 @@ export class PatientsService {
     });
     if (!patient) throw new NotFoundException('Patient not found');
 
-    if (user.role === Role.PATIENT && user.id !== patient.userId) {
+    if (user.role === Role.PATIENT && user.id !== patient.userId) { // This was already correct, but good to confirm
       throw new ForbiddenException('You can only view your own profile');
     }
 
@@ -271,9 +271,16 @@ export class PatientsService {
       throw new ForbiddenException('Only active patients can update profile');
     }
 
+    const dataToUpdate: any = { ...updateDto };
+
+    // Convert dateOfBirth string to Date object if it exists
+    if (updateDto.dateOfBirth) {
+      dataToUpdate.dateOfBirth = new Date(updateDto.dateOfBirth);
+    }
+
     return this.prisma.patient.update({
       where: { id },
-      data: { ...updateDto },
+      data: dataToUpdate,
     });
   }
 
@@ -305,7 +312,7 @@ export class PatientsService {
     const patient = await this.prisma.patient.findUnique({ where: { id } });
     if (!patient) throw new NotFoundException('Patient not found');
 
-    if (user.role === Role.PATIENT && user.id !== patient.userId) {
+    if (user.role === Role.PATIENT && user.id !== patient.userId) { // This was also correct, good to confirm
       throw new ForbiddenException('You can only view your own appointments');
     }
 

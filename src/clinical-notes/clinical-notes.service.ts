@@ -37,17 +37,24 @@ export class ClinicalNotesService {
 
   /** Doctor/Admin/Superadmin edits a clinical note */
   async editNote(
+    patientId: string,
     noteId: string,
     userId: string,
     role: Role,
     dto: { observations?: string; doctorNotes?: string; treatmentPlan?: string },
   ) {
-    if (!["DOCTOR", "ADMIN", "SUPERADMIN"].includes(role)) {
+    const allowedRoles = new Set<Role>([Role.DOCTOR, Role.ADMIN, Role.SUPERADMIN]);
+    if (!allowedRoles.has(role)) {
       throw new ForbiddenException('Only doctors or admins can edit clinical notes');
     }
 
-    const note = await this.prisma.clinicalNote.findUnique({ where: { id: noteId } });
+    const note = await this.prisma.clinicalNote.findUnique({
+      where: { id: noteId },
+    });
     if (!note) throw new NotFoundException('Note not found');
+    if (note.patientId !== patientId) {
+      throw new ForbiddenException('This note does not belong to the specified patient.');
+    }
 
     return this.prisma.clinicalNote.update({
       where: { id: noteId },
@@ -70,8 +77,9 @@ export class ClinicalNotesService {
 
   /** Nurse adds note suggestion */
   async addSuggestion(patientId: string, userId: string, role: Role, dto: { content: string }) {
-    if (role !== Role.NURSE) {
-      throw new ForbiddenException('Only nurses can add note suggestions');
+    const allowedRoles = new Set<Role>([Role.NURSE, Role.ADMIN, Role.SUPERADMIN]);
+    if (!allowedRoles.has(role)) {
+      throw new ForbiddenException('Only nurses, admins, or superadmins can add note suggestions');
     }
 
     const suggestion = await this.prisma.noteSuggestion.create({
@@ -93,13 +101,19 @@ export class ClinicalNotesService {
   }
 
   /** Doctor approves nurse suggestion */
-  async approveSuggestion(suggestionId: string, userId: string, role: Role) {
-    if (!["DOCTOR", "ADMIN", "SUPERADMIN"].includes(role)) {
+  async approveSuggestion(patientId: string, suggestionId: string, userId: string, role: Role) {
+    const allowedRoles = new Set<Role>([Role.DOCTOR, Role.ADMIN, Role.SUPERADMIN]);
+    if (!allowedRoles.has(role)) {
       throw new ForbiddenException('Only doctors or admins can approve suggestions');
     }
 
-    const suggestion = await this.prisma.noteSuggestion.findUnique({ where: { id: suggestionId } });
+    const suggestion = await this.prisma.noteSuggestion.findUnique({
+      where: { id: suggestionId },
+    });
     if (!suggestion) throw new NotFoundException('Suggestion not found');
+    if (suggestion.patientId !== patientId) {
+      throw new ForbiddenException('This suggestion does not belong to the specified patient.');
+    }
 
     // Approve the suggestion
     const approved = await this.prisma.noteSuggestion.update({

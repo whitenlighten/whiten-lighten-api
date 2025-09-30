@@ -15,6 +15,7 @@ import { Roles } from 'src/auth/decorator/roles.decorator';
 import { Role } from '@prisma/client';
 import { GetUser } from 'src/common/decorator/get-user.decorator';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { RequestUser } from 'src/users/user.interface';
 
 @ApiTags('clinical-notes')
 @ApiBearerAuth('JWT-auth')
@@ -33,10 +34,9 @@ export class ClinicalNotesController {
   async addNote(
     @Param('patientId') patientId: string,
     @Body() dto: CreateClinicalNoteDto,
-    @GetUser('id') userId: string,
-    @GetUser('role') userRole: Role
+   @GetUser() user: any
   ) {
-    return this.service.addNote(patientId, userId, userRole, dto);
+    return this.service.addNote(patientId, user.userId, user.Role, dto);
   }
 
   // =====================
@@ -47,12 +47,12 @@ export class ClinicalNotesController {
   @ApiOperation({ summary: 'Edit a clinical note' })
   @ApiResponse({ status: 200, description: 'Clinical note updated successfully' })
   async editNote(
+    @Param('patientId') patientId: string,
     @Param('noteId') noteId: string,
     @Body() dto: UpdateClinicalNoteDto,
-    @GetUser('id') userId: string,
-    @GetUser('role') userRole: Role
+    @GetUser() user: any
   ) {
-    return this.service.editNote(noteId, userId, userRole, dto);
+    return this.service.editNote(patientId, noteId, user.userId, user.role, dto);
   }
 
   // =====================
@@ -70,16 +70,16 @@ export class ClinicalNotesController {
   // 4. Add note suggestion (Nurse)
   // =====================
   @Post('/suggestions')
-  @Roles(Role.NURSE, Role.SUPERADMIN)
+  @Roles(Role.NURSE, Role.ADMIN, Role.SUPERADMIN)
   @ApiOperation({ summary: 'Add a clinical note suggestion' })
   @ApiResponse({ status: 201, description: 'Suggestion added successfully' })
   async addSuggestion(
     @Param('patientId') patientId: string,
     @Body() dto: CreateNoteSuggestionDto,
-    @GetUser('id') userId: string,
-    @GetUser('role') userRole: Role
+    @GetUser() user: any
   ) {
-    return this.service.addSuggestion(patientId, userId, userRole, dto);
+    console.log({user})
+    return this.service.addSuggestion(patientId, user.userId, user.role, dto);
   }
 
   // =====================
@@ -90,10 +90,10 @@ export class ClinicalNotesController {
   @ApiOperation({ summary: 'Approve a nurse note suggestion' })
   @ApiResponse({ status: 200, description: 'Suggestion approved' })
   async approveSuggestion(
+    @Param('patientId') patientId: string,
     @Param('suggestionId') suggestionId: string,
-    @GetUser('id') userId: string,
-    @GetUser('role') userRole: Role
+    @GetUser() user: any
   ) {
-    return this.service.approveSuggestion(suggestionId, userId, userRole);
+    return this.service.approveSuggestion(patientId, suggestionId, user.userId, user.role);
   }
 }

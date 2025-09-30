@@ -104,14 +104,23 @@ export class UsersService {
     const limit = Math.min(parseInt(query.limit || '20', 10), 100);
     const skip = (page - 1) * limit;
 
-    const where: any = {};
+    const where: any = {
+      // Exclude users with the PATIENT role
+      role: {
+        not: Role.PATIENT,
+      },
+    };
+
     if (query.role) where.role = query.role;
     if (query.q) {
-      where.OR = [
+      // Combine search with the role exclusion
+      where.AND = [
+        { role: { not: Role.PATIENT } },
+        { OR: [
         { email: { contains: query.q, mode: 'insensitive' } },
         { firstName: { contains: query.q, mode: 'insensitive' } },
         { lastName: { contains: query.q, mode: 'insensitive' } },
-      ];
+      ]}];
     }
 
     let selectedFields: Record<string, boolean> = { id: true };

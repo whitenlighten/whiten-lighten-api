@@ -197,12 +197,6 @@ export class AppointmentsService {
   if (query.status) {
     where.status = query.status;
   }
-  if (query.doctorId) {
-    where.doctorId = query.doctorId;
-  }
-  if (query.patientId) {
-    where.patientId = query.patientId;
-  }
   if (query.q) {
     where.OR = [
       { reason: { contains: query.q, mode: 'insensitive' } },
@@ -240,7 +234,7 @@ export class AppointmentsService {
 }
 
   async findOne(id: string, projection?: any) {
-    return this.prisma.appointment.findUnique({
+    const appointment = await this.prisma.appointment.findUnique({
       where: { id },
       include: {
         patient: true, // Return all patient scalar fields
@@ -249,6 +243,8 @@ export class AppointmentsService {
         },
       },
     });
+    if (!appointment) throw new NotFoundException('Appointment not found');
+    return appointment;
   }
 
   async findAllForMe(userId: string) {

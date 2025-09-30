@@ -21,6 +21,7 @@ import { CreatePatientDto, QueryPatientsDto, SelfRegisterPatientDto, UpdatePatie
 import { GetUser } from 'src/common/decorator/get-user.decorator';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { Public } from 'src/common/decorator/public.decorator';
+import { QueryAppointmentsDto } from 'src/appointments/appointment.dto';
 
 @ApiTags('patients')
 @ApiBearerAuth('JWT-auth')
@@ -86,7 +87,7 @@ export class PatientsController {
   @Get(':id')
   @Roles(Role.SUPERADMIN, Role.ADMIN, Role.DOCTOR, Role.FRONTDESK, Role.PATIENT)
   @ApiOperation({ summary: 'Get patient by ID' })
-  async getPatient(@Param('id') id: string, @GetUser() user: any) {
+  async getPatient(@Param('id', ParseUUIDPipe) id: string, @GetUser() user: any) {
     return this.patientsService.findOne(id, user);
   }
 
@@ -107,22 +108,23 @@ export class PatientsController {
   @Roles(Role.SUPERADMIN, Role.DOCTOR, Role.NURSE, Role.ADMIN, Role.FRONTDESK)
   @ApiOperation({ summary: 'Update patient details (staff only)' })
   async updatePatient(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id') id: string,
     @Body() dto: UpdatePatientDto,
-    @GetUser('id') updatedBy: string,
+    @GetUser() user: any,
   ) {
-    return this.patientsService.update(id, dto, updatedBy);
+    return this.patientsService.update(id, dto, user);
   }
 
   // =====================
   // 8. Delete (archive) patient (Admin only)
   // =====================
   @Delete(':id')
-  @Roles(Role.SUPERADMIN, Role.ADMIN)
+  @Roles(Role.SUPERADMIN, Role.ADMIN, Role.FRONTDESK)
   @ApiOperation({ summary: 'Archive patient (Admin only)' })
-  async archivePatient(@Param('id') patientId: string, @GetUser('id') deletedBy: string) {
-    return this.patientsService.archive(patientId, deletedBy);
+  async archivePatient(@Param('id') id: string, @GetUser() user: any) {
+    return this.patientsService.archive(id, user);
   }
+
 
   // =====================
   // 9. Patient’s appointment history
@@ -130,7 +132,11 @@ export class PatientsController {
   @Get(':id/appointments')
   @Roles(Role.SUPERADMIN, Role.ADMIN, Role.DOCTOR, Role.FRONTDESK, Role.PATIENT)
   @ApiOperation({ summary: "Get patient's appointment history" })
-  async getPatientAppointments(@Param('id') id: string, @GetUser() user: any) {
-    return this.patientsService.findAppointments(id, user);
+  async getPatientAppointments(
+    @Param('id', ParseUUIDPipe) id: string,
+    @GetUser() user: any,
+    @Query() query: QueryPatientsDto,
+  ) {
+    return this.patientsService.findAppointments(id, user, query);
   }
 }

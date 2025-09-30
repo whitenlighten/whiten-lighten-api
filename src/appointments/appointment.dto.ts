@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsOptional, IsDateString, IsEnum, IsNotEmpty, IsEmail, IsInt, Min, Max } from 'class-validator';
+import { IsString, IsOptional, IsDateString, IsEnum, IsNotEmpty, IsEmail, IsInt, Min, Max, IsNumber } from 'class-validator';
 import { AppointmentStatus } from './appointments.enum';
+import { Type } from 'class-transformer';
 
 /**
  * DTO for creating an appointment (used by staff/admin)
@@ -127,30 +128,22 @@ export class QueryAppointmentsDto {
   @IsEnum(AppointmentStatus)
   status?: AppointmentStatus;
 
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  doctorId?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  patientId?: string;
-
   @ApiPropertyOptional({ description: 'Text search query for reason or service' })
   @IsOptional()
   @IsString()
   q?: string; // Missing: Property for text search
 
   @ApiPropertyOptional({ description: 'Page number', default: 1 })
+  @Type(() => Number)
   @IsOptional()
-  @IsInt()
+  @IsNumber()
   @Min(1)
   page?: number; // Missing: Property for pagination
 
   @ApiPropertyOptional({ description: 'Number of items per page', default: 20 })
+  @Type(() => Number)
   @IsOptional()
-  @IsInt()
+  @IsNumber()
   @Min(1)
   @Max(100)
   limit?: number; // Missing: Property for pagination
