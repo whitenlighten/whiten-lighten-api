@@ -191,4 +191,21 @@ export class PatientsController {
     createdById
   );
 }
+
+@Post(':id/communication')
+@Roles(Role.SUPERADMIN, Role.ADMIN, Role.DOCTOR, Role.NURSE, Role.FRONTDESK)
+@ApiOperation({ summary: 'Add communication log' })
+async logCommunication(
+  @Param('id') id: string,
+  @Body() dto: { type: string; message: string },
+) {
+  return this.patientsService.logCommunication(id, dto.type, dto.message);
+}
+
+@Get(':id/communication')
+getCommunications(@Param('id') id: string) {
+  return this.patientsService.getCommunications(id);
+}
+
+
 }
