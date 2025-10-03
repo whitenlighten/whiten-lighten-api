@@ -116,6 +116,7 @@ export class ClinicalNotesService {
       }),
     ]);
 
+    
     // 5. Return paginated response
     return {
       meta: { total, page, limit, pages: Math.ceil(total / limit) },

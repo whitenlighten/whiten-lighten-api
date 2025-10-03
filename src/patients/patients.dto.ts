@@ -109,3 +109,16 @@ export class QueryPatientsDto {
   @IsString()
   fields?: string;
 }
+
+export enum HistoryType {
+  MEDICAL = 'MEDICAL',
+  DENTAL = 'DENTAL',
+}
+
+export class AddPatientHistoryDto {
+
+  @ApiProperty({ example: 'Patient has a history of allergies to penicillin.' })
+  @IsString()
+  @IsNotEmpty()
+  notes!: string;
+}

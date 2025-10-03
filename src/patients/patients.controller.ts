@@ -17,8 +17,8 @@ import { PatientsService } from './patients.service';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Role } from '@prisma/client';
 import { Roles } from 'src/auth/decorator/roles.decorator';
-import { CreatePatientDto, QueryPatientsDto, SelfRegisterPatientDto, UpdatePatientDto } from './patients.dto';
-import { GetUser } from 'src/common/decorator/get-user.decorator';
+import { AddPatientHistoryDto, CreatePatientDto, QueryPatientsDto, SelfRegisterPatientDto, UpdatePatientDto } from './patients.dto';
+import { GetUser, GetUser as GetUserId } from 'src/common/decorator/get-user.decorator';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { Public } from 'src/common/decorator/public.decorator';
 import { QueryAppointmentsDto } from 'src/appointments/appointment.dto';
@@ -147,4 +147,48 @@ export class PatientsController {
   ) {
     return this.patientsService.findAppointments(id, user, query);
   }
+
+  // =====================
+  // 10. Patient’s medical/dental history
+  // =====================
+  @Get(':patientId/history')
+  @Roles(Role.SUPERADMIN, Role.ADMIN, Role.DOCTOR, Role.FRONTDESK, Role.NURSE)
+  @ApiOperation({ summary: "Get a patient's history" })
+  async getPatientHistory(
+    @Query() query: QueryPatientsDto,
+    @GetUser() user: any,
+  ) {
+    return this.patientsService.getHistory( query, user);
+  }
+
+  @Post(':patientId/history/dental')
+  @Roles(Role.SUPERADMIN, Role.ADMIN, Role.DOCTOR, Role.NURSE, Role.FRONTDESK)
+  @ApiOperation({ summary: 'Add to a Dental Record' })
+  async addDentalHistory( 
+    @Param('patientId') patientId: string,
+    @Body() dto: AddPatientHistoryDto,
+    @GetUserId('id') createdById: string,
+  ) {
+    return this.patientsService.addHistory(
+    patientId, 
+    'DENTAL', // 👈 Hardcoded type
+    dto.notes, // 👈 Pass notes directly
+    createdById
+  );}
+
+  @Post(':patientId/history/medical')
+  @Roles(Role.SUPERADMIN, Role.ADMIN, Role.DOCTOR, Role.NURSE, Role.FRONTDESK)
+  @ApiOperation({ summary: 'Add to a patient history' })
+  async addPMedicalHistory( 
+    @Param('patientId') patientId: string,
+    @Body() dto: AddPatientHistoryDto,
+    @GetUserId('id') createdById: string,
+  ) {
+   return this.patientsService.addHistory(
+    patientId, 
+    'MEDICAL', // 👈 Hardcoded type
+    dto.notes, // 👈 Pass notes directly
+    createdById
+  );
+}
 }

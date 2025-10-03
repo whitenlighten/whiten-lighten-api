@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { Role, PatientStatus, RegistrationType } from '@prisma/client';
 import { PrismaService } from 'prisma/prisma.service';
-import { CreatePatientDto, QueryPatientsDto, SelfRegisterPatientDto, UpdatePatientDto } from './patients.dto';
+import { AddPatientHistoryDto, CreatePatientDto, QueryPatientsDto, SelfRegisterPatientDto, UpdatePatientDto } from './patients.dto';
 import { getPatientId } from 'src/utils/patient-id.util';
 import { MailService } from 'src/utils/mail.service';
 
@@ -347,5 +347,79 @@ export class PatientsService {
       meta: { total, page, limit, pages: Math.ceil(total / limit) },
       data,
     };
+  }
+
+  async getHistory( query: QueryPatientsDto, user: any) {
+    console.log('Query parameters:', query);
+    console.log('User attempting access:', user.id, 'Role:', user.role);
+
+    if (user.role === Role.PATIENT) {
+      throw new ForbiddenException('Patients cannot list patient history');
+    }
+    const page = parseInt(query.page || '1', 10);
+    const limit = Math.min(parseInt(query.limit || '20', 10), 100);
+    const skip = (page - 1) * limit;
+
+    console.log(`Pagination: Page ${page}, Limit ${limit}, Skip ${skip}`);
+
+    const where: any = { };
+    if (query.q) {
+      where.OR = [
+        { notes: { contains: query.q, mode: 'insensitive' } },
+        { type: { contains: query.q, mode: 'insensitive' } },
+      ];
+    }
+
+    console.log('Database WHERE clause:', JSON.stringify(where));
+
+    const [total, data] = await this.prisma.$transaction([
+      this.prisma.patientHistory.count({ where }),
+      this.prisma.patientHistory.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+
+     console.log(`Total records found: ${total}, Records fetched: ${data.length}`);
+
+    return {
+      meta: { total, page, limit, pages: Math.ceil(total / limit) },
+      data,
+    };
+  }
+
+  async addHistory(patientId: string,  type: 'MEDICAL' | 'DENTAL', // 👈 New explicit 'type' argument
+  notes: string,   createdBy: any) {
+    // The role check is handled by the decorator in the controller
+    // Check if the patient exists
+    console.log(`Attempting to add history for patient ID: ${patientId}`);
+    console.log('History created by user ID:', createdBy);
+    const patient = await this.prisma.patient.findUnique({
+      where: { id: patientId },
+    });
+
+    if (!patient) {
+      throw new NotFoundException(`Patient with ID "${patientId}" not found.`);
+    }
+     console.log(`Patient found: ${patientId}. Proceeding to create history record.`);
+
+     const creatorId = createdBy.userId; 
+
+    const history = await this.prisma.patientHistory.create({
+      data: {
+        patientId: patientId,
+        type: type,
+        notes:notes,
+      },
+    });
+
+    if (!history) throw new InternalServerErrorException('Unable to add history');
+
+    console.log(`Successfully created patient history record with ID: ${history.id}`);
+
+
+    return history;
   }
 }

@@ -85,15 +85,12 @@ enum MaritalStatus {
   WIDOWED
 }
 
-
-
 enum PaymentStatus {
   PENDING
   SUCCESS
   FAILED
   REFUNDED
 }
-
 
 model Patient {
   id        String @id @default(cuid())
@@ -113,12 +110,12 @@ model Patient {
   genotype      String?
 
   // Contact Info
-  phone           String @unique
-  alternatePhone  String?
-  email           String @unique
-  address         String?
-  state           String?
-  lga             String?
+  phone          String  @unique
+  alternatePhone String?
+  email          String  @unique
+  address        String?
+  state          String?
+  lga            String?
   country        String? @default("Nigeria")
 
   // Emergency Contact
@@ -145,12 +142,12 @@ model Patient {
   primaryDoctorId   String? // linked to Doctor
   status            PatientStatus    @default(ACTIVE)
 
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  approvedAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  approvedAt   DateTime?
   deletedAt    DateTime?
   createdById  String?
-  approvedById User?    @relation(fields: [userId], references: [id])
+  approvedById User?     @relation(fields: [userId], references: [id])
 
   // Relations
   clinicalNotes ClinicalNote[]
@@ -160,6 +157,9 @@ model Patient {
   userId        String?
 
   NoteSuggestion NoteSuggestion[]
+  PatientHistory PatientHistory[]
+  CommunicationLog  CommunicationLog[]
+  
 }
 
 /**
@@ -172,22 +172,22 @@ model ClinicalNote {
   patientId String
   patient   Patient @relation(fields: [patientId], references: [id])
 
-  createdById String  // always a Doctor/Admin/Superadmin
-  createdBy   User    @relation(fields: [createdById], references: [id])
+  createdById String // always a Doctor/Admin/Superadmin
+  createdBy   User   @relation(fields: [createdById], references: [id])
 
-  observations String?   // nurse's original input (copied from suggestion if applicable)
-  doctorNotes  String?   // doctor’s additional notes/diagnosis
-  treatmentPlan String?  // optional structured field
-  status       NoteStatus @default(APPROVED)
+  observations  String? // nurse's original input (copied from suggestion if applicable)
+  doctorNotes   String? // doctor’s additional notes/diagnosis
+  treatmentPlan String? // optional structured field
+  status        NoteStatus @default(APPROVED)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   visitId String?
-  visit   Visit? @relation(fields: [visitId], references: [id])
+  visit   Visit?  @relation(fields: [visitId], references: [id])
 
   approvedById String?
-  approvedBy   User? @relation("PatientApprovedBy", fields: [approvedById], references: [id])
+  approvedBy   User?   @relation("PatientApprovedBy", fields: [approvedById], references: [id])
 
   User User[] @relation("DoctorApprovedNotes")
 }
@@ -212,48 +212,45 @@ model Visit {
  * Patient billing records
  */
 
-
 model User {
-  id            String    @id @default(uuid())
-  email         String    @unique
-  password      String
-  
-  firstName     String?
-  lastName      String?
-  phone         String? @unique
-  role          Role
+  id       String @id @default(uuid())
+  email    String @unique
+  password String
+
+  firstName      String?
+  lastName       String?
+  phone          String? @unique
+  role           Role
   specialization String?
-  isActive      Boolean   @default(true)
-  emailVerified Boolean   @default(false)
+  isActive       Boolean @default(true)
+  emailVerified  Boolean @default(false)
 
   // --- NEW FIELDS (for OAuth + 2FA) ---
-  oauthProvider    String?   // e.g., "google"
-  oauthId          String?   // provider-specific id
-  twoFactorEnabled Boolean   @default(false)
-  twoFactorSecret  String?   // base32 secret for authenticator app
-  twoFactorTempSecret String?                     // ADDED (temporary during setup)
+  oauthProvider       String? // e.g., "google"
+  oauthId             String? // provider-specific id
+  twoFactorEnabled    Boolean @default(false)
+  twoFactorSecret     String? // base32 secret for authenticator app
+  twoFactorTempSecret String? // ADDED (temporary during setup)
 
-
-  lastLogin     DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  deletedAt     DateTime?
+  lastLogin DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
   // relation
-  refreshTokens RefreshToken[]
-  auditLogs     AuditLog[]     @relation("UserAuditLogs")
-  patients      Patient[]      @relation("RegisteredPatients") // Patients registered by staff
-  nurseNotes    NoteSuggestion[] @relation("NurseCreatedNotes") // Notes created as Nurse
-  doctorNotes   ClinicalNote[] @relation("DoctorApprovedNotes") // Notes approved as Doctor
-  Appointment   Appointment[]
-  Patient       Patient[]
-  createdClinicalNotes ClinicalNote[] @relation(fields: [], references: [])
+  refreshTokens           RefreshToken[]
+  auditLogs               AuditLog[]       @relation("UserAuditLogs")
+  patients                Patient[]        @relation("RegisteredPatients") // Patients registered by staff
+  nurseNotes              NoteSuggestion[] @relation("NurseCreatedNotes") // Notes created as Nurse
+  doctorNotes             ClinicalNote[]   @relation("DoctorApprovedNotes") // Notes approved as Doctor
+  Appointment             Appointment[]
+  Patient                 Patient[]
+  createdClinicalNotes    ClinicalNote[]   @relation(fields: [], references: [])
+  createdNoteSuggestions  NoteSuggestion[] @relation("NoteSuggestionCreatedBy")
+  approvedNoteSuggestions NoteSuggestion[] @relation("NoteSuggestionApprovedBy")
+  ClinicalNote            ClinicalNote[]   @relation("PatientApprovedBy")
 
   @@index([email])
-  createdNoteSuggestions NoteSuggestion[] @relation("NoteSuggestionCreatedBy")
-  approvedNoteSuggestions NoteSuggestion[] @relation("NoteSuggestionApprovedBy")
-  ClinicalNote ClinicalNote[] @relation("PatientApprovedBy")
-  
 }
 
 // New Model for Refresh Tokens
@@ -281,19 +278,38 @@ model AuditLog {
   user User? @relation("UserAuditLogs", fields: [userId], references: [id])
 }
 
-model Appointment {
-  id         String            @id @default(uuid())
-  patientId  String
-  doctorId String? // doctor id
-  date       DateTime
-  status     AppointmentStatus @default(PENDING)
-  createdAt  DateTime          @default(now())
-  updatedAt  DateTime          @updatedAt
-  reason     String?
-  service    String @default("General Consultation")
+model PatientHistory {
+  id        String   @id @default(cuid())
+  type      String // 'MEDICAL' or 'DENTAL'
+  notes     String
+  createdAt DateTime @default(now())
+  patientId String
+  patient   Patient  @relation(fields: [patientId], references: [id])
+}
 
-  patient  Patient @relation(fields: [patientId], references: [id])
-  doctor User?   @relation(fields: [doctorId], references: [id])
+model CommunicationLog {
+  id        String   @id @default(cuid())
+  type      String   // 'CALL' | 'EMAIL' | 'IN_PERSON'
+  message   String
+  createdAt DateTime @default(now())
+  patientId String
+  patient   Patient  @relation(fields: [patientId], references: [id])
+}
+
+
+model Appointment {
+  id        String            @id @default(uuid())
+  patientId String
+  doctorId  String? // doctor id
+  date      DateTime
+  status    AppointmentStatus @default(PENDING)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  reason    String?
+  service   String            @default("General Consultation")
+
+  patient Patient @relation(fields: [patientId], references: [id])
+  doctor  User?   @relation(fields: [doctorId], references: [id])
 }
 
 model PatientCounter {
@@ -303,63 +319,62 @@ model PatientCounter {
 }
 
 model Invoice {
-  id          String        @id @default(cuid())
-  patientId   String
-  patient     Patient       @relation(fields: [patientId], references: [id])
-   amount      Float                        // total expected amount
-  status      InvoiceStatus @default(UNPAID)
+  id        String        @id @default(cuid())
+  patientId String
+  patient   Patient       @relation(fields: [patientId], references: [id])
+  amount    Float // total expected amount
+  status    InvoiceStatus @default(UNPAID)
 
   // optional but useful for real systems
-  currency    String        @default("NGN")
+  currency    String    @default("NGN")
   description String?
-  reference   String?       @unique       // e.g. "INV-2025-000123"
+  reference   String?   @unique // e.g. "INV-2025-000123"
   dueDate     DateTime?
   metadata    Json?
 
   // timestamps
-  issuedAt    DateTime      @default(now())
-  paidAt      DateTime?
-  updatedAt   DateTime      @updatedAt
+  issuedAt  DateTime  @default(now())
+  paidAt    DateTime?
+  updatedAt DateTime  @updatedAt
 
   // RELATION (new)
-  payments    Payment[]    // ← NEW: Link multiple payments (partial, retry, refund)
+  payments Payment[] // ← NEW: Link multiple payments (partial, retry, refund)
 }
 
 model Payment {
-  id            String         @id @default(cuid())
-  invoiceId     String
-  invoice       Invoice        @relation(fields: [invoiceId], references: [id])
+  id        String  @id @default(cuid())
+  invoiceId String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id])
 
-  amount        Float
-  method        PaymentMethod              // reuse your existing enum
-  status        PaymentStatus  @default(PENDING)
+  amount Float
+  method PaymentMethod // reuse your existing enum
+  status PaymentStatus @default(PENDING)
 
   // gateway/ops
-  transactionRef String?       @unique
-  gateway        String?       // e.g. "paystack", "flutterwave", "manual"
+  transactionRef String? @unique
+  gateway        String? // e.g. "paystack", "flutterwave", "manual"
   note           String?
 
-  createdAt     DateTime       @default(now())
-  paidAt        DateTime?
+  createdAt DateTime  @default(now())
+  paidAt    DateTime?
 }
 
-
 model NoteSuggestion {
-  id          String   @id @default(cuid())
-  patientId   String
-  patient     Patient  @relation(fields: [patientId], references: [id])
+  id        String  @id @default(cuid())
+  patientId String
+  patient   Patient @relation(fields: [patientId], references: [id])
 
-  createdById String   // nurse ID
-  createdBy   User     @relation("NoteSuggestionCreatedBy", fields: [createdById], references: [id])
+  createdById String // nurse ID
+  createdBy   User   @relation("NoteSuggestionCreatedBy", fields: [createdById], references: [id])
 
-  content     String
-  status      NoteStatus @default(PENDING)
+  content String
+  status  NoteStatus @default(PENDING)
 
   approvedById String?
-  approvedBy   User?     @relation("NoteSuggestionApprovedBy", fields: [approvedById], references: [id])
+  approvedBy   User?   @relation("NoteSuggestionApprovedBy", fields: [approvedById], references: [id])
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   User User[] @relation("NurseCreatedNotes")
 }
