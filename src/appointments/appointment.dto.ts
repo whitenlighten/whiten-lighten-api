@@ -103,6 +103,8 @@ export class SelfBookAppointmentDto {
   reason?: string;
 }
 
+
+
 /**
  * DTO for updating an appointment (partial update)
  */
@@ -116,6 +118,11 @@ export class UpdateAppointmentDto {
   @IsOptional()
   @IsString()
   reason?: string;
+
+  @ApiPropertyOptional({ enum: AppointmentStatus, description: 'Appointment status' })
+  @IsOptional()
+  @IsEnum(AppointmentStatus)
+  status?: AppointmentStatus;
 }
 
 /**

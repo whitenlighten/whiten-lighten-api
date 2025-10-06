@@ -15,7 +15,13 @@ export class AppointmentsService {
   ) {}
 
   async create(dto: CreateAppointmentDto) {
-    return this.prisma.appointment.create({ data: { ...dto } });
+    return this.prisma.appointment.create({ 
+      data: {
+         ...dto,
+         status: AppointmentStatus.PENDING,
+         date: new Date(dto.date),
+      } 
+    });
   }
 
   async publicBook(dto: PublicBookAppointmentDto) {
@@ -163,11 +169,12 @@ export class AppointmentsService {
   }
 
   private async updateStatus(id: string, status: AppointmentStatus) {
+    if (!status) throw new BadRequestException('Status is required')
     const appt = await this.prisma.appointment.findUnique({ where: { id } });
     if (!appt) throw new NotFoundException('Appointment not found');
     return this.prisma.appointment.update({
       where: { id },
-      data: { status },
+      data: { status: status as any },
     });
   }
 
@@ -180,12 +187,14 @@ export class AppointmentsService {
     return this.prisma.appointment.update({
       where: { id },
       data: {
-        status: update.status ?? appt.status,
+        status: (update.status ?? appt.status) as any,
         date: update.date ?? appt.date,
         reason: update.reason ?? appt.reason,
       },
     });
   }
+
+  
 
  async findAll(query: QueryAppointmentsDto) {
   const page = Math.max(query.page || 1, 1);
@@ -256,4 +265,6 @@ export class AppointmentsService {
       },
     });
   }
+
+
 }

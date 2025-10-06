@@ -76,6 +76,10 @@ export class AppointmentsController {
     return this.appointmentsService.updateAppointment(id, dto);
   }
 
+  
+
+
+
   @ApiOperation({ summary: 'Approve appointment' })
   @ApiBearerAuth('JWT-auth')
   @Roles(Role.SUPERADMIN, Role.ADMIN, Role.DOCTOR) 

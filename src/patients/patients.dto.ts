@@ -122,3 +122,22 @@ export class AddPatientHistoryDto {
   @IsNotEmpty()
   notes!: string;
 }
+
+
+export class LogCommunicationDto {
+  @ApiProperty({
+    description: 'The type of communication (e.g., "SMS", "Email", "In-person")',
+    example: 'Email',
+  })
+  @IsString()
+  @IsNotEmpty()
+  type!: string;
+
+  @ApiProperty({
+    description: 'The content or body of the communication message.',
+    example: 'Patient confirmed the appointment for tomorrow.',
+  })
+  @IsString()
+  @IsNotEmpty()
+  message!: string;
+}

@@ -422,4 +422,74 @@ export class PatientsService {
 
     return history;
   }
+
+  async logCommunication(patientId: string, type: string, message: string) {
+  // 1. Check if the patient exists
+  const patient = await this.prisma.patient.findUnique({ 
+    where: { id: patientId },
+  });
+
+  if (!patient) {
+    throw new NotFoundException('Patient not found');
+  }
+
+  // 2. Log the communication and RETURN the result
+  const communication = await this.prisma.communicationLog.create({ // 👈 FIX: Added 'await' and wrapped arguments in {}
+    data: { 
+      patientId,
+      type, 
+      message,
+    },
+  });
+
+ 
+  return communication;
 }
+
+async getCommunications( patientId: string, query: any, user: any ) {
+  console.log('Query parameters:', query);
+  console.log('User attempting access:', user.id, 'Role:', user.role);
+
+  if (user.role === 'PATIENT' && user.id !== patientId) { // Example of stricter check
+    throw new ForbiddenException('Patients cannot list communication logs for other patients');
+  }
+
+  const page = parseInt(query.page || '1', 10);
+  const limit = Math.min(parseInt(query.limit || '20', 10), 100);
+  const skip = (page - 1) * limit;
+  console.log(`Pagination: Page ${page}, Limit ${limit}, Skip ${skip}`);
+
+  const where: any = { patientId: patientId };
+
+  if (query.q) {
+    where.OR = [
+      { message: { contains: query.q, mode: 'insensitive' } }, // Search the 'message' field
+      { type: { contains: query.q, mode: 'insensitive' } },   // Search the 'type' field
+    ];
+  }
+
+  console.log('Database WHERE clause:', JSON.stringify(where));
+  // 4. Execute Transaction: Count and Fetch Data
+  const [total, data] = await this.prisma.$transaction([
+    this.prisma.communicationLog.count({ where }), // Target the correct table
+    this.prisma.communicationLog.findMany({       // Target the correct table
+      where,
+      skip,
+      take: limit,
+      orderBy: { createdAt: 'desc' },
+    }),
+  ]);
+
+  console.log(`Total records found: ${total}, Records fetched: ${data.length}`);
+
+  // 5. Return Paginated Results
+  return {
+    meta: { total, page, limit, pages: Math.ceil(total / limit) },
+    data,
+  };
+}
+
+
+ 
+}
+  

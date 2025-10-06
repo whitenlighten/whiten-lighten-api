@@ -17,7 +17,7 @@ import { PatientsService } from './patients.service';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Role } from '@prisma/client';
 import { Roles } from 'src/auth/decorator/roles.decorator';
-import { AddPatientHistoryDto, CreatePatientDto, QueryPatientsDto, SelfRegisterPatientDto, UpdatePatientDto } from './patients.dto';
+import { AddPatientHistoryDto, CreatePatientDto, LogCommunicationDto, QueryPatientsDto, SelfRegisterPatientDto, UpdatePatientDto } from './patients.dto';
 import { GetUser, GetUser as GetUserId } from 'src/common/decorator/get-user.decorator';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { Public } from 'src/common/decorator/public.decorator';
@@ -193,18 +193,21 @@ export class PatientsController {
 }
 
 @Post(':id/communication')
-@Roles(Role.SUPERADMIN, Role.ADMIN, Role.DOCTOR, Role.NURSE, Role.FRONTDESK)
 @ApiOperation({ summary: 'Add communication log' })
 async logCommunication(
   @Param('id') id: string,
-  @Body() dto: { type: string; message: string },
+  @Body() dto: LogCommunicationDto,
 ) {
   return this.patientsService.logCommunication(id, dto.type, dto.message);
 }
 
 @Get(':id/communication')
-getCommunications(@Param('id') id: string) {
-  return this.patientsService.getCommunications(id);
+@Roles(Role.SUPERADMIN, Role.ADMIN, Role.DOCTOR, Role.NURSE, Role.FRONTDESK)
+async getCommunications(
+  @Query() query: any,
+  @GetUser() user: any,
+  @Param('id') id: string) {
+  return this.patientsService.getCommunications(id, query, user);
 }
 
 
