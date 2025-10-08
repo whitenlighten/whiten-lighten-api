@@ -13,6 +13,9 @@ import { ClinicalNotesModule } from './clinical-notes/clinical-notes.module';
 import { BillingModule } from './billing/billing.module';
 import { BillingService } from './billing/billing.service';
 import { BillingController } from './billing/billing.controller';
+import { ScheduleModule } from '@nestjs/schedule';
+import { RemindersModule } from './reminders/reminders.module';
+import { AttendanceModule } from './attendance/attendance.module';
 ;
 
 @Global() // 👈 makes MailService available app-wide
@@ -29,7 +32,9 @@ export class MailModule {}
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
+      
     }),
+    ScheduleModule.forRoot(),
     AuthModule,
     PrismaModule,
     MailModule,
@@ -37,6 +42,8 @@ export class MailModule {}
     PatientsModule,
     AppointmentsModule,
     ClinicalNotesModule,
+    RemindersModule,
+    AttendanceModule
   ],
   providers: [
     {

@@ -250,8 +250,10 @@ model User {
   createdNoteSuggestions  NoteSuggestion[] @relation("NoteSuggestionCreatedBy")
   approvedNoteSuggestions NoteSuggestion[] @relation("NoteSuggestionApprovedBy")
   ClinicalNote            ClinicalNote[]   @relation("PatientApprovedBy")
+  
 
   @@index([email])
+  StaffAttendance StaffAttendance[]
 }
 
 // New Model for Refresh Tokens
@@ -311,7 +313,43 @@ model Appointment {
 
   patient Patient @relation(fields: [patientId], references: [id])
   doctor  User?   @relation(fields: [doctorId], references: [id])
+
+  ClientAttendance ClientAttendance[]
 }
+
+model Reminder {
+  id          String   @id @default(cuid())
+  email       String
+  subject     String?
+  message     String
+  scheduledAt DateTime
+  sent        Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}
+
+model StaffAttendance {
+  id        String   @id @default(cuid())
+  staffId   String   // 👈 This refers to the User.id
+  staff     User     @relation(fields: [staffId], references: [id])
+  clockIn   DateTime @default(now())
+  clockOut  DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("StaffAttendance")
+}
+
+
+model ClientAttendance {
+  id             String       @id @default(cuid())
+  appointmentId  String
+  appointment    Appointment  @relation(fields: [appointmentId], references: [id])
+  attended       Boolean
+  status         String
+  notes          String?
+  createdAt      DateTime @default(now())
+}
+
 
 model PatientCounter {
   id        Int      @id @default(1) // always one row
