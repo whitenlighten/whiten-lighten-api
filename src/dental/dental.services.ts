@@ -117,6 +117,7 @@ export class DentalService {
 
   // --------------------
   // Treatments CRUD
+  /// Craete the treatement procedure and decription for a patient
   // --------------------
   async createTreatment(dto: CreateDentalTreatmentDto, PerformedByid: string) {
     try {
@@ -150,6 +151,7 @@ export class DentalService {
     }
   }
 
+  // to get all treatment description for all
   async getTreatments(query: QueryDto) {
     try {
       const page = Math.max(parseInt(query.page || '1', 10), 1);
@@ -181,14 +183,16 @@ export class DentalService {
     }
   }
 
+  
+  // to get all treatment for a patient by Id
   async getTreatmentById(id: string) {
     try {
-      const t = await this.prisma.dentalTreatment.findUnique({
+      const treatment = await this.prisma.dentalTreatment.findUnique({
         where: { id },
         include: { patient: { select: { id: true, firstName: true, lastName: true, patientId: true } } },
       });
-      if (!t) throw new NotFoundException('Treatment not found');
-      return t;
+      if (!treatment) throw new NotFoundException('Treatment not found');
+      return treatment;
     } catch (err) {
       this.logger.error('getTreatmentById error', err);
       if (err instanceof NotFoundException) throw err;
