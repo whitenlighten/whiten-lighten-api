@@ -1,7 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException, InternalServerErrorException, Logger, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from 'prisma/prisma.service';
 import { Role } from '@prisma/client';
-import { CreateDentalChartDto, CreateDentalTreatmentDto, QueryDto, UpdateDentalChartDto } from './dental.dto';
+import { CreateDentalChartDto, CreateDentalRecallDto, CreateDentalTreatmentDto, QueryDto, UpdateDentalChartDto, UpdateDentalTreatmentDto } from './dental.dto';
 
 @Injectable()
 export class DentalService {
@@ -200,8 +200,7 @@ export class DentalService {
     }
   }
 
-  async updateTreatment(id: string, dto: UpdateDentalTreatmentDto, userId: string, userRole: Role) {
-    this.assertDoctorOrAdmin(userRole);
+  async updateTreatment(id: string, dto: UpdateDentalTreatmentDto,) {
     try {
       const existing = await this.prisma.dentalTreatment.findUnique({ where: { id } });
       if (!existing) throw new NotFoundException('Treatment not found');
@@ -211,7 +210,8 @@ export class DentalService {
         data: {
           procedure: dto.procedure ?? existing.procedure,
           description: dto.description ?? existing.description,
-          cost: dto.cost ?? existing.cost,
+          cost: dto.cost ?? existing.cost,// Use the provided userId
+          updatedAt: new Date(), // Update the updatedAt field
         },
       });
       return updated;
@@ -225,9 +225,14 @@ export class DentalService {
   // --------------------
   // Recalls CRUD
   // --------------------
-  async createRecall(dto: CreateDentalRecallDto, userId: string, userRole: Role) {
-    this.assertDoctorOrAdmin(userRole);
+  async createRecall(dto: CreateDentalRecallDto, userId: string) {
     try {
+        const patient = await this.prisma.patient.findUnique({ 
+            where: { id: dto.patientId } 
+            });
+          
+        if (!patient) throw new NotFoundException(' not found');
+
       const recall = await this.prisma.dentalRecall.create({
         data: {
           patientId: dto.patientId,
