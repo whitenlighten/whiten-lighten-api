@@ -16,6 +16,7 @@ import { BillingController } from './billing/billing.controller';
 import { ScheduleModule } from '@nestjs/schedule';
 import { RemindersModule } from './reminders/reminders.module';
 import { AttendanceModule } from './attendance/attendance.module';
+import { DentalModule } from './dental/dental.module';
 ;
 
 @Global() // 👈 makes MailService available app-wide
@@ -43,7 +44,8 @@ export class MailModule {}
     AppointmentsModule,
     ClinicalNotesModule,
     RemindersModule,
-    AttendanceModule
+    AttendanceModule,
+    DentalModule,
   ],
   providers: [
     {

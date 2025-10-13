@@ -6,7 +6,7 @@ export class CreateDentalChartDto {
   @ApiProperty({ description: 'Patient id (cuid)' })
   @IsNotEmpty()
   @IsString()
-  patientId: string;
+  patientId!: string;
 
   @ApiPropertyOptional({ description: 'Optional appointment id' })
   @IsOptional()
@@ -32,7 +32,7 @@ export class CreateDentalTreatmentDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
-  patientId: string;
+  patientId!: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -42,7 +42,7 @@ export class CreateDentalTreatmentDto {
   @ApiProperty({ example: 'Filling' })
   @IsNotEmpty()
   @IsString()
-  procedure: string;
+  procedure!: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -53,6 +53,9 @@ export class CreateDentalTreatmentDto {
   @IsOptional()
   @IsNumber()
   cost?: number;
+
+  
+
 }
 
 export class UpdateDentalTreatmentDto extends PartialType(CreateDentalTreatmentDto) {}
@@ -61,12 +64,12 @@ export class CreateDentalRecallDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
-  patientId: string;
+  patientId!: string;
 
   @ApiProperty({ description: 'ISO date string for recall' })
   @IsNotEmpty()
   @IsISO8601()
-  recallDate: string;
+  recallDate!: string;
 
   @ApiPropertyOptional()
   @IsOptional()
