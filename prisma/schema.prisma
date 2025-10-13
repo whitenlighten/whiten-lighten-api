@@ -157,10 +157,12 @@ model Patient {
   Appointment   Appointment[]
   userId        String?
 
-  NoteSuggestion NoteSuggestion[]
-  PatientHistory PatientHistory[]
-  CommunicationLog  CommunicationLog[]
-  
+  NoteSuggestion   NoteSuggestion[]
+  PatientHistory   PatientHistory[]
+  CommunicationLog CommunicationLog[]
+  DentalChart      DentalChart[]
+  DentalTreatment  DentalTreatment[]
+  DentalRecall     DentalRecall[]
 }
 
 /**
@@ -240,20 +242,19 @@ model User {
 
   // relation
   refreshTokens           RefreshToken[]
-  auditLogs               AuditLog[]       @relation("UserAuditLogs")
-  patients                Patient[]        @relation("RegisteredPatients") // Patients registered by staff
-  nurseNotes              NoteSuggestion[] @relation("NurseCreatedNotes") // Notes created as Nurse
-  doctorNotes             ClinicalNote[]   @relation("DoctorApprovedNotes") // Notes approved as Doctor
+  auditLogs               AuditLog[]        @relation("UserAuditLogs")
+  patients                Patient[]         @relation("RegisteredPatients") // Patients registered by staff
+  nurseNotes              NoteSuggestion[]  @relation("NurseCreatedNotes") // Notes created as Nurse
+  doctorNotes             ClinicalNote[]    @relation("DoctorApprovedNotes") // Notes approved as Doctor
   Appointment             Appointment[]
   Patient                 Patient[]
-  createdClinicalNotes    ClinicalNote[]   @relation(fields: [], references: [])
-  createdNoteSuggestions  NoteSuggestion[] @relation("NoteSuggestionCreatedBy")
-  approvedNoteSuggestions NoteSuggestion[] @relation("NoteSuggestionApprovedBy")
-  ClinicalNote            ClinicalNote[]   @relation("PatientApprovedBy")
-  
+  createdClinicalNotes    ClinicalNote[]    @relation(fields: [], references: [])
+  createdNoteSuggestions  NoteSuggestion[]  @relation("NoteSuggestionCreatedBy")
+  approvedNoteSuggestions NoteSuggestion[]  @relation("NoteSuggestionApprovedBy")
+  ClinicalNote            ClinicalNote[]    @relation("PatientApprovedBy")
+  StaffAttendance         StaffAttendance[]
 
   @@index([email])
-  StaffAttendance StaffAttendance[]
 }
 
 // New Model for Refresh Tokens
@@ -292,13 +293,12 @@ model PatientHistory {
 
 model CommunicationLog {
   id        String   @id @default(cuid())
-  type      String   // 'CALL' | 'EMAIL' | 'IN_PERSON'
+  type      String // 'CALL' | 'EMAIL' | 'IN_PERSON'
   message   String
   createdAt DateTime @default(now())
   patientId String
   patient   Patient  @relation(fields: [patientId], references: [id])
 }
-
 
 model Appointment {
   id        String            @id @default(uuid())
@@ -315,6 +315,56 @@ model Appointment {
   doctor  User?   @relation(fields: [doctorId], references: [id])
 
   ClientAttendance ClientAttendance[]
+  DentalChart      DentalChart[]
+  DentalTreatment  DentalTreatment[]
+}
+
+model DentalChart {
+  id            String   @id @default(cuid())
+  patientId     String
+  appointmentId String? // optional link to an appointment
+  chartData     String? // JSON string or structured summary
+  notes         String?
+  createdById   String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // relations
+  patient     Patient      @relation(fields: [patientId], references: [id])
+  appointment Appointment? @relation(fields: [appointmentId], references: [id])
+
+  @@index([patientId])
+}
+
+model DentalTreatment {
+  id            String   @id @default(cuid())
+  patientId     String
+  appointmentId String?
+  procedure     String
+  description   String?
+  performedBy   String? // userId of doctor/nurse
+  cost          Float?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  patient     Patient      @relation(fields: [patientId], references: [id])
+  appointment Appointment? @relation(fields: [appointmentId], references: [id])
+
+  @@index([patientId])
+}
+
+model DentalRecall {
+  id          String   @id @default(cuid())
+  patientId   String
+  recallDate  DateTime
+  reason      String?
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  patient Patient @relation(fields: [patientId], references: [id])
+
+  @@index([patientId])
 }
 
 model Reminder {
@@ -328,28 +378,26 @@ model Reminder {
 }
 
 model StaffAttendance {
-  id        String   @id @default(cuid())
-  staffId   String   // 👈 This refers to the User.id
-  staff     User     @relation(fields: [staffId], references: [id])
-  clockIn   DateTime @default(now())
+  id        String    @id @default(cuid())
+  staffId   String // 👈 This refers to the User.id
+  staff     User      @relation(fields: [staffId], references: [id])
+  clockIn   DateTime  @default(now())
   clockOut  DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   @@map("StaffAttendance")
 }
 
-
 model ClientAttendance {
-  id             String       @id @default(cuid())
-  appointmentId  String
-  appointment    Appointment  @relation(fields: [appointmentId], references: [id])
-  attended       Boolean
-  status         String
-  notes          String?
-  createdAt      DateTime @default(now())
+  id            String      @id @default(cuid())
+  appointmentId String
+  appointment   Appointment @relation(fields: [appointmentId], references: [id])
+  attended      Boolean
+  status        String
+  notes         String?
+  createdAt     DateTime    @default(now())
 }
-
 
 model PatientCounter {
   id        Int      @id @default(1) // always one row
