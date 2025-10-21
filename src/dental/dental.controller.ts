@@ -34,7 +34,7 @@ export class DentalController {
   }
 
   @Get('charts/:id')
-    @Roles(Role.SUPERADMIN, Role.ADMIN, Role.FRONTDESK, Role.DOCTOR, Role.NURSE) 
+  @Roles(Role.SUPERADMIN, Role.ADMIN, Role.FRONTDESK, Role.DOCTOR, Role.NURSE) 
   @ApiOperation({ summary: 'Get dental chart by id' })
   async getChart(@Param('id') id: string) {
     return this.service.getChartById(id);

@@ -157,12 +157,16 @@ model Patient {
   Appointment   Appointment[]
   userId        String?
 
-  NoteSuggestion   NoteSuggestion[]
-  PatientHistory   PatientHistory[]
-  CommunicationLog CommunicationLog[]
-  DentalChart      DentalChart[]
-  DentalTreatment  DentalTreatment[]
-  DentalRecall     DentalRecall[]
+  NoteSuggestion     NoteSuggestion[]
+  PatientHistory     PatientHistory[]
+  CommunicationLog   CommunicationLog[]
+  DentalChart        DentalChart[]
+  DentalTreatment    DentalTreatment[]
+  DentalRecall       DentalRecall[]
+  EntNote            EntNote[]
+  EntSymptom         EntSymptom[]
+  AestheticProcedure AestheticProcedure[]
+  AestheticConsent   AestheticConsent[]
 }
 
 /**
@@ -242,17 +246,21 @@ model User {
 
   // relation
   refreshTokens           RefreshToken[]
-  auditLogs               AuditLog[]        @relation("UserAuditLogs")
-  patients                Patient[]         @relation("RegisteredPatients") // Patients registered by staff
-  nurseNotes              NoteSuggestion[]  @relation("NurseCreatedNotes") // Notes created as Nurse
-  doctorNotes             ClinicalNote[]    @relation("DoctorApprovedNotes") // Notes approved as Doctor
+  auditLogs               AuditLog[]           @relation("UserAuditLogs")
+  patients                Patient[]            @relation("RegisteredPatients") // Patients registered by staff
+  nurseNotes              NoteSuggestion[]     @relation("NurseCreatedNotes") // Notes created as Nurse
+  doctorNotes             ClinicalNote[]       @relation("DoctorApprovedNotes") // Notes approved as Doctor
   Appointment             Appointment[]
   Patient                 Patient[]
-  createdClinicalNotes    ClinicalNote[]    @relation(fields: [], references: [])
-  createdNoteSuggestions  NoteSuggestion[]  @relation("NoteSuggestionCreatedBy")
-  approvedNoteSuggestions NoteSuggestion[]  @relation("NoteSuggestionApprovedBy")
-  ClinicalNote            ClinicalNote[]    @relation("PatientApprovedBy")
+  createdClinicalNotes    ClinicalNote[]       @relation(fields: [], references: [])
+  createdNoteSuggestions  NoteSuggestion[]     @relation("NoteSuggestionCreatedBy")
+  approvedNoteSuggestions NoteSuggestion[]     @relation("NoteSuggestionApprovedBy")
+  ClinicalNote            ClinicalNote[]       @relation("PatientApprovedBy")
   StaffAttendance         StaffAttendance[]
+  EntNote                 EntNote[]
+  EntSymptom              EntSymptom[]
+  AestheticProcedure      AestheticProcedure[]
+  AestheticConsent        AestheticConsent[]
 
   @@index([email])
 }
@@ -369,6 +377,52 @@ model DentalRecall {
   @@index([patientId])
 }
 
+model AestheticProcedure {
+  id          String    @id @default(cuid())
+  patientId   String
+  doctorId    String
+  name        String // e.g., "Botox", "Chemical peel"
+  description String?
+  cost        Float?
+  scheduledAt DateTime?
+  status      String    @default("SCHEDULED")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  // relations
+  patient        Patient          @relation(fields: [patientId], references: [id])
+  doctor         User             @relation(fields: [doctorId], references: [id])
+  AestheticAddon AestheticAddon[]
+}
+
+model AestheticConsent {
+  id        String    @id @default(cuid())
+  patientId String
+  doctorId  String? // who approved / recorded
+  fileUrl   String // link to stored consent document
+  signedAt  DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  patient Patient @relation(fields: [patientId], references: [id])
+  doctor  User?   @relation(fields: [doctorId], references: [id])
+}
+
+model AestheticAddon {
+  id          String    @id @default(cuid())
+  procedureId String
+  name        String
+  price       Float?
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  procedure AestheticProcedure @relation(fields: [procedureId], references: [id])
+}
+
 model Reminder {
   id          String   @id @default(cuid())
   email       String
@@ -377,6 +431,41 @@ model Reminder {
   scheduledAt DateTime
   sent        Boolean  @default(false)
   createdAt   DateTime @default(now())
+}
+
+model EntNote {
+  id        String    @id @default(cuid()) // primary key (CUID consistent with your Patient IDs)
+  patientId String // FK to Patient
+  doctorId  String // FK to User (doctor)
+  title     String? // optional small title
+  content   String // main clinical note content
+  status    String    @default("ACTIVE") // simple status, could be enum later
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  updatedBy String?
+  deletedBy String?
+  deletedAt DateTime?
+
+  // Relations
+  patient Patient @relation(fields: [patientId], references: [id])
+  doctor  User    @relation(fields: [doctorId], references: [id])
+}
+
+model EntSymptom {
+  id        String    @id @default(cuid())
+  patientId String
+  doctorId  String
+  symptom   String
+  severity  String? // e.g., mild/moderate/severe
+  note      String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  updatedBy String?
+  deletedBy String?
+  deletedAt DateTime?
+
+  patient Patient @relation(fields: [patientId], references: [id])
+  doctor  User    @relation(fields: [doctorId], references: [id])
 }
 
 model StaffAttendance {
