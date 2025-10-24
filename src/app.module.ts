@@ -19,6 +19,9 @@ import { AttendanceModule } from './attendance/attendance.module';
 import { DentalModule } from './dental/dental.module';
 import { EntModule } from './ent/ent.module';
 import { AestheticsModule } from './aesthetics/aesthetics.module';
+import { IvTherapyModule } from './iv-therapy/iv-therapy.module';
+import { NotificationsModule } from './notification/notifications.module';
+import { AuditTrailModule } from './audit-trail/audit-trail.module';
 ;
 
 @Global() // 👈 makes MailService available app-wide
@@ -50,6 +53,10 @@ export class MailModule {}
     DentalModule,
     EntModule,
     AestheticsModule,
+   IvTherapyModule,
+   NotificationsModule,
+   AuditTrailModule,
+   
   ],
   providers: [
     {

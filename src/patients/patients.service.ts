@@ -9,13 +9,15 @@ import { Role, PatientStatus, RegistrationType } from '@prisma/client';
 import { PrismaService } from 'prisma/prisma.service';
 import { AddPatientHistoryDto, CreatePatientDto, QueryPatientsDto, SelfRegisterPatientDto, UpdatePatientDto } from './patients.dto';
 import { getPatientId } from 'src/utils/patient-id.util';
-import { MailService } from 'src/utils/mail.service';
+import { NotificationsService } from 'src/notification/notifications.service';
+
 
 @Injectable()
 export class PatientsService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly mailService: MailService,
+    private readonly notificationsService: NotificationsService,
+
   ) {}
 
   /**
@@ -42,7 +44,7 @@ export class PatientsService {
       throw new BadRequestException('Email is required');
     }
 
-    return this.prisma.patient.create({
+    const patient = await this.prisma.patient.create({
       data: {
         ...createDto,
         status: PatientStatus.ACTIVE,
@@ -55,6 +57,16 @@ export class PatientsService {
         patientId: await getPatientId(),
       },
     });
+
+    // 👇 Notify the patient that their profile was created
+    await this.notificationsService.create({
+      title: 'Welcome to the Clinic!',
+      message: `Dear ${patient.firstName}, your patient profile has been successfully created.`,
+      type: 'PATIENT',
+      recipientId: patient.id,
+    });
+
+    return patient;
   }
 
   /**
@@ -116,6 +128,13 @@ export class PatientsService {
       },
     });
 
+     await this.notificationsService.create({
+      title: 'Registration Submitted',
+      message: `Dear ${patient.firstName}, your registration has been received and is pending approval.`,
+      type: 'PATIENT',
+      recipientId: patient.id,
+    });
+
     return patient;
   } catch (error) {
     console.error('Error during self-registration:', error);
@@ -139,20 +158,7 @@ export class PatientsService {
       throw new BadRequestException('Only pending patients can be approved');
     }
 
-    // Send mail after approval
-    try {
-    await this.mailService.sendPatientApproval(
-      patient.email,
-      `${patient.firstName} ${patient.lastName}`,
-    );
-    console.log(`Approval email successfully sent to ${patient.email}`);
-  } catch (error) {
-    console.error('Failed to send email:', error);
-    // This will provide a more specific error message to help you debug.
-    // The error object will contain details about the failure (e.g., wrong password, connection refused).
-    throw new BadRequestException('Failed to send patient approval email. Check mail service configuration or network connection.');
-  }
-
+    
   // If email sending is successful or handled, proceed to update the patient status
   return this.prisma.patient.update({
     where: { id: patient.id },
@@ -277,11 +283,19 @@ export class PatientsService {
     if (updateDto.dateOfBirth) {
       dataToUpdate.dateOfBirth = new Date(updateDto.dateOfBirth);
     }
-
-    return this.prisma.patient.update({
-      where: { id },
-      data: dataToUpdate,
+    const updated = await this.prisma.patient.update({
+      where: { id: patient.id },
+      data: { status: PatientStatus.ACTIVE, approvedAt: new Date() },
     });
+    // 👇 Notify patient of approval
+    await this.notificationsService.create({
+      title: 'Registration Approved',
+      message: `Congratulations ${updated.firstName}, your registration has been approved.`,
+      type: 'PATIENT',
+      recipientId: updated.id,
+    });
+
+    return updated;
   }
 
   /**
@@ -297,10 +311,20 @@ export class PatientsService {
     const patient = await this.prisma.patient.findUnique({ where: { id } });
     if (!patient) throw new NotFoundException('Patient not found');
 
-    return this.prisma.patient.update({
+     const archive = await this.prisma.patient.update({
       where: { id },
       data: { status: PatientStatus.ARCHIVED },
     });
+
+     await this.notificationsService.create({
+      title: 'Profile Archived',
+      message: `Your profile has been archived by an administrator.`,
+      type: 'PATIENT',
+      recipientId: patient.id,
+    });
+
+
+    return archive;
   }
 
    async getallarchived(user: any){ // Removed unused 'id'
@@ -441,6 +465,13 @@ export class PatientsService {
       message,
     },
   });
+
+  await this.notificationsService.create({
+      title: ' communication looged',
+      message: `You have sucessfully log a communication.`,
+      type: 'PATIENT',
+      recipientId: patient.id,
+    });
 
  
   return communication;
