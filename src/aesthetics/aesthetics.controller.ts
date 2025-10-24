@@ -17,6 +17,7 @@ export class AestheticsController {
     constructor(private readonly service: AestheticsService) {}
 
     // ------------------ PROCEDURES ------------------
+   
 
     // Create Procedure: POST /aesthetics/:patientId/procedures
     @Roles(Role.SUPERADMIN, Role.ADMIN, Role.DOCTOR, Role.NURSE) 

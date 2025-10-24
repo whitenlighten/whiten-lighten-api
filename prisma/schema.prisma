@@ -16,6 +16,7 @@ enum Role {
   NURSE
   FRONTDESK
   PATIENT
+  PHARMACIST
 }
 
 enum PatientStatus {
@@ -167,6 +168,9 @@ model Patient {
   EntSymptom         EntSymptom[]
   AestheticProcedure AestheticProcedure[]
   AestheticConsent   AestheticConsent[]
+  Payment            Payment[]
+  IvSession IvSession[]
+  
 }
 
 /**
@@ -261,8 +265,11 @@ model User {
   EntSymptom              EntSymptom[]
   AestheticProcedure      AestheticProcedure[]
   AestheticConsent        AestheticConsent[]
+  IvRecipe                IvRecipe[]
+  IvReaction              IvReaction[]
 
   @@index([email])
+  Notification Notification[]
 }
 
 // New Model for Refresh Tokens
@@ -362,6 +369,7 @@ model DentalTreatment {
 
   @@index([patientId])
 }
+
 
 model DentalRecall {
   id          String   @id @default(cuid())
@@ -496,6 +504,51 @@ model PatientCounter {
   updatedAt DateTime @updatedAt
 }
 
+model IvRecipe {
+  id          String      @id @default(cuid())
+  name        String
+  description String?
+  ingredients String[] // list of nutrients or meds
+  createdById String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  deletedAt   DateTime?
+  createdBy   User?       @relation(fields: [createdById], references: [id])
+  sessions    IvSession[]
+}
+
+model IvSession {
+  id        String    @id @default(cuid())
+  patientId String
+  recipeId  String
+  doctorId  String
+  date      DateTime
+  status    String    @default("SCHEDULED")
+  notes     String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  patient   Patient      @relation(fields: [patientId], references: [id])
+  recipe    IvRecipe     @relation(fields: [recipeId], references: [id])
+  reactions IvReaction[]
+}
+
+model IvReaction {
+  id           String    @id @default(cuid())
+  sessionId    String
+  type         String
+  severity     String?
+  notes        String?
+  recordedById String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  session    IvSession @relation(fields: [sessionId], references: [id])
+  recordedBy User?     @relation(fields: [recordedById], references: [id])
+}
+
 model Invoice {
   id        String        @id @default(cuid())
   patientId String
@@ -535,6 +588,8 @@ model Payment {
 
   createdAt DateTime  @default(now())
   paidAt    DateTime?
+  Patient   Patient?  @relation(fields: [patientId], references: [id])
+  patientId String?
 }
 
 model NoteSuggestion {
@@ -555,4 +610,39 @@ model NoteSuggestion {
   updatedAt DateTime @updatedAt
 
   User User[] @relation("NurseCreatedNotes")
+}
+
+model AuditTrail {
+  id          String   @id @default(cuid())
+  actorId     String   // user who performed the action
+  actorRole   String
+  action      String   // e.g., "CREATE_PATIENT", "APPROVE_APPOINTMENT"
+  entityType  String   // e.g., "PATIENT", "APPOINTMENT"
+  entityId    String
+  details     String?
+  ipAddress   String?  // optional JSON or description
+  createdAt   DateTime @default(now())
+}
+
+
+model Notification {
+  id           String   @id @default(uuid())
+  recipientId  String
+  title        String
+  message      String
+  type         String   // e.g. 'PATIENT_APPROVAL', 'APPOINTMENT', etc.
+  read         Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  recipient    User     @relation(fields: [recipientId], references: [id])
+
+}
+
+
+enum NotificationType {
+  APPOINTMENT
+  REMINDER
+  BILLING
+  SYSTEM
 }
