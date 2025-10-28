@@ -6,14 +6,18 @@ import {
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from 'prisma/prisma.service';
-import { CreateNotificationDto, QueryNotificationDto, } from './notifications.dto';
+import { CreateNotificationDto, QueryNotificationDto } from './notifications.dto';
 import { Role } from '@prisma/client';
+import { AuditTrailService } from 'src/audit-trail/auditTrail.service';
 
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditTrailService: AuditTrailService,
+  ) {}
 
   /**
    * Create a new notification
@@ -36,16 +40,13 @@ export class NotificationsService {
       });
 
       // Log to Audit Trail
-      await this.prisma.auditTrail.create({
-        data: {
-          action: 'CREATE_NOTIFICATION',
-          details: `Notification sent to ${recipient.firstName} ${recipient.lastName}: ${dto.title}`,
-          actorId: 'SYSTEM', // System action
-          actorRole: 'SYSTEM',
-          entityType: 'Notification',
-          entityId: notification.id,
-        },
-      });
+      await this.auditTrailService.log(
+        'CREATE_NOTIFICATION',
+        'Notification',
+        notification.id,
+        { id: 'SYSTEM', role: 'SYSTEM' },
+        `Notification sent to ${recipient.firstName} ${recipient.lastName}: ${dto.title}`,
+      );
 
       return notification;
     } catch (err: any) {
@@ -120,16 +121,13 @@ export class NotificationsService {
 
       await this.prisma.notification.delete({ where: { id } });
 
-      await this.prisma.auditTrail.create({
-        data: {
-          action: 'DELETE_NOTIFICATION',
-          actorId: user.id,
-          actorRole: user.role,
-          details: `Notification "${existing.title}" deleted by ${user.role}`,
-          entityType: 'Notification',
-          entityId: existing.id,
-        },
-      });
+      await this.auditTrailService.log(
+        'DELETE_NOTIFICATION',
+        'Notification',
+        existing.id,
+        user,
+        `Notification "${existing.title}" deleted by ${user.role}`,
+      );
 
       return { message: 'Notification deleted successfully' };
     } catch (err: any) {

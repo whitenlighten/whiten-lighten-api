@@ -17,7 +17,7 @@ export class PatientsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
-
+   
   ) {}
 
   /**
@@ -66,7 +66,17 @@ export class PatientsService {
       recipientId: patient.id,
     });
 
-    return patient;
+    // Return only the input data plus key generated fields
+    const { email, firstName, lastName, phone, gender, dateOfBirth, address } = createDto;
+    return {
+      id: patient.id,
+      patientId: patient.patientId,
+      status: patient.status,
+      email,
+      firstName,
+      lastName,
+      phone, gender, dateOfBirth, address
+    };
   }
 
   /**
@@ -87,7 +97,7 @@ export class PatientsService {
         { phone: createDto.phone }
       ]
     },
-    include: {  Patient: true },
+    include: {  patient: true },
   }); 
 
   if (existingUser) {
@@ -135,7 +145,16 @@ export class PatientsService {
       recipientId: patient.id,
     });
 
-    return patient;
+    // Return only the input data plus key generated fields
+    const { email, firstName, lastName, phone, gender } = createDto;
+    return {
+      id: patient.id,
+      patientId: patient.patientId,
+      status: patient.status,
+      email,
+      firstName,
+      lastName, phone, gender
+    };
   } catch (error) {
     console.error('Error during self-registration:', error);
     throw new InternalServerErrorException('Failed to self-register patient. Please try again later.');
@@ -283,10 +302,7 @@ export class PatientsService {
     if (updateDto.dateOfBirth) {
       dataToUpdate.dateOfBirth = new Date(updateDto.dateOfBirth);
     }
-    const updated = await this.prisma.patient.update({
-      where: { id: patient.id },
-      data: { status: PatientStatus.ACTIVE, approvedAt: new Date() },
-    });
+    const updated = await this.prisma.patient.update({ where: { id }, data: dataToUpdate });
     // 👇 Notify patient of approval
     await this.notificationsService.create({
       title: 'Registration Approved',
@@ -295,7 +311,14 @@ export class PatientsService {
       recipientId: updated.id,
     });
 
-    return updated;
+    // Return only the updated data plus key identifiers
+    const response: any = { ...updateDto };
+    response.id = updated.id;
+    response.patientId = updated.patientId;
+    response.updatedAt = updated.updatedAt;
+
+    // Clean up undefined properties from the DTO
+    return Object.fromEntries(Object.entries(response).filter(([_, v]) => v !== undefined));
   }
 
   /**
@@ -327,15 +350,30 @@ export class PatientsService {
     return archive;
   }
 
-   async getallarchived(user: any){ // Removed unused 'id'
+   async getallarchived(user: any, query: QueryPatientsDto){ // Removed unused 'id'
     if (![Role.SUPERADMIN, Role.ADMIN, Role.FRONTDESK, Role.SUPERADMIN].includes(user.role)) {
       throw new ForbiddenException('You do not have permission to view archived patients.');
     }
-    const archived = await this.prisma.patient.findMany({ where: { status: PatientStatus.ARCHIVED } });
 
-    if (archived.length === 0) throw new NotFoundException('Patient not found');
+    const page = parseInt(query.page || '1', 10);
+    const limit = Math.min(parseInt(query.limit || '20', 10), 100);
+    const skip = (page - 1) * limit;
 
-    return archived;
+    const where = { status: PatientStatus.ARCHIVED };
+
+    const [total, data] = await this.prisma.$transaction([
+      this.prisma.patient.count({ where }),
+      this.prisma.patient.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+
+    if (total === 0) throw new NotFoundException('No archived patients found');
+
+    return { meta: { total, page, limit, pages: Math.ceil(total / limit) }, data };
   }
 
   /**
@@ -429,13 +467,12 @@ export class PatientsService {
     }
      console.log(`Patient found: ${patientId}. Proceeding to create history record.`);
 
-     const creatorId = createdBy.userId; 
-
     const history = await this.prisma.patientHistory.create({
       data: {
         patientId: patientId,
         type: type,
         notes:notes,
+        createdById: createdBy.id, // 👈 Pass the creator's ID
       },
     });
 

@@ -27,7 +27,6 @@ export class NotificationsController {
 
   // 1. CREATE: Strictly restricted to internal/admin roles.
   @Post()
-  @Roles(Role.ADMIN, Role.SUPERADMIN) // ⬅️ Added explicit RBAC Guard
   @UseGuards(RolesGuard)
   @ApiOperation({ summary: 'Create a new notification (Admin/Internal use only)' })
   create(@Body() dto: CreateNotificationDto) {
@@ -37,17 +36,22 @@ export class NotificationsController {
 
   // 2. LIST: Logic remains combined, but uses cleaner decorator syntax.
   @Get()
+  @UseGuards(RolesGuard) // Apply RolesGuard specifically to this method
   @ApiOperation({ summary: 'Get all notifications for the user (Contextual Patient/Admin list)' })
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false })
   @ApiQuery({ name: 'type', required: false })
   @ApiQuery({ name: 'read', required: false })
+  @Roles(Role.SUPERADMIN, Role.ADMIN, Role.DOCTOR, Role.FRONTDESK, Role.NURSE, Role.PATIENT)
   findAll(
     @GetUser('role') role: Role,
     @GetUser('patientId') patientId: string,
     @GetUser() user: any, // Pass entire user object for Admin/Staff findAll
     @Query() query: QueryNotificationDto,
   ) {
+    console.log('--- HIT /notifications endpoint ---');
+    console.log('User object from token:', user);
+    console.log(`Role: ${role}, Patient ID: ${patientId}`);
     if (role === Role.PATIENT) {
       // NOTE: Ensure patientId is passed correctly (it must exist for PATIENT role)
       return this.notificationsService.findAllForPatient(patientId, query); 
@@ -65,7 +69,6 @@ export class NotificationsController {
 
   // 4. DELETE: Strictly restricted to Admin roles.
   @Delete(':id')
-  @Roles(Role.ADMIN, Role.SUPERADMIN) // ⬅️ Added explicit RBAC Guard
   @UseGuards(RolesGuard)
   @ApiOperation({ summary: 'Delete notification (Admin only)' })
   delete(@Param('id') id: string, @GetUser() user: any) {

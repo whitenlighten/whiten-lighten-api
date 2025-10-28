@@ -37,7 +37,7 @@ export class ClinicalNotesController {
     @Body() dto: CreateClinicalNoteDto,
    @GetUser() user: any
   ) {
-    return this.service.addNote(patientId, user.userId, user.Role, dto);
+    return this.service.addNote(patientId, user.id, user.role, dto);
   }
 
   // =====================

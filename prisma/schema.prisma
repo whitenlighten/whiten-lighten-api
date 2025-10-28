@@ -148,15 +148,17 @@ model Patient {
   updatedAt    DateTime  @updatedAt
   approvedAt   DateTime?
   deletedAt    DateTime?
-  createdById  String?
-  approvedById User?     @relation(fields: [userId], references: [id])
+  createdById   String?
+  approvedById  String?
+  userId        String?          @unique
 
   // Relations
-  clinicalNotes ClinicalNote[]
-  visits        Visit[]
-  invoices      Invoice[]
-  Appointment   Appointment[]
-  userId        String?
+  user               User?            @relation("PatientProfile", fields: [userId], references: [id])
+  approvedBy         User?            @relation("ApprovedPatients", fields: [approvedById], references: [id])
+  clinicalNotes      ClinicalNote[]
+  visits             Visit[]
+  invoices           Invoice[]
+  Appointment        Appointment[]
 
   NoteSuggestion     NoteSuggestion[]
   PatientHistory     PatientHistory[]
@@ -169,8 +171,8 @@ model Patient {
   AestheticProcedure AestheticProcedure[]
   AestheticConsent   AestheticConsent[]
   Payment            Payment[]
-  IvSession IvSession[]
-  
+  IvSession          IvSession[]
+  Notification Notification[]
 }
 
 /**
@@ -255,10 +257,12 @@ model User {
   nurseNotes              NoteSuggestion[]     @relation("NurseCreatedNotes") // Notes created as Nurse
   doctorNotes             ClinicalNote[]       @relation("DoctorApprovedNotes") // Notes approved as Doctor
   Appointment             Appointment[]
-  Patient                 Patient[]
+  approvedPatients        Patient[]            @relation("ApprovedPatients")
+  patient                 Patient?             @relation("PatientProfile")
   createdClinicalNotes    ClinicalNote[]       @relation(fields: [], references: [])
   createdNoteSuggestions  NoteSuggestion[]     @relation("NoteSuggestionCreatedBy")
   approvedNoteSuggestions NoteSuggestion[]     @relation("NoteSuggestionApprovedBy")
+  createdPatientHistories PatientHistory[]     @relation("CreatedPatientHistories")
   ClinicalNote            ClinicalNote[]       @relation("PatientApprovedBy")
   StaffAttendance         StaffAttendance[]
   EntNote                 EntNote[]
@@ -269,7 +273,6 @@ model User {
   IvReaction              IvReaction[]
 
   @@index([email])
-  Notification Notification[]
 }
 
 // New Model for Refresh Tokens
@@ -303,6 +306,8 @@ model PatientHistory {
   notes     String
   createdAt DateTime @default(now())
   patientId String
+  createdById String?
+  createdBy User? @relation("CreatedPatientHistories", fields: [createdById], references: [id])
   patient   Patient  @relation(fields: [patientId], references: [id])
 }
 
@@ -313,7 +318,7 @@ model CommunicationLog {
   createdAt DateTime @default(now())
   patientId String
   patient   Patient  @relation(fields: [patientId], references: [id])
-}
+} 
 
 model Appointment {
   id        String            @id @default(uuid())
@@ -325,6 +330,11 @@ model Appointment {
   updatedAt DateTime          @updatedAt
   reason    String?
   service   String            @default("General Consultation")
+  timeslot  DateTime
+  maritalStatus MaritalStatus?
+
+
+  // relations
 
   patient Patient @relation(fields: [patientId], references: [id])
   doctor  User?   @relation(fields: [doctorId], references: [id])
@@ -369,7 +379,6 @@ model DentalTreatment {
 
   @@index([patientId])
 }
-
 
 model DentalRecall {
   id          String   @id @default(cuid())
@@ -613,32 +622,33 @@ model NoteSuggestion {
 }
 
 model AuditTrail {
-  id          String   @id @default(cuid())
-  actorId     String   // user who performed the action
-  actorRole   String
-  action      String   // e.g., "CREATE_PATIENT", "APPROVE_APPOINTMENT"
-  entityType  String   // e.g., "PATIENT", "APPOINTMENT"
-  entityId    String
-  details     String?
-  ipAddress   String?  // optional JSON or description
-  createdAt   DateTime @default(now())
+  id         String   @id @default(cuid())
+  actorId    String // user who performed the action
+  actorRole  String
+  action     String // e.g., "CREATE_PATIENT", "APPROVE_APPOINTMENT"
+  entityType String // e.g., "PATIENT", "APPOINTMENT"
+  entityId   String
+  details    String?
+  ipAddress  String? // optional JSON or description
+  createdAt  DateTime @default(now())
 }
-
 
 model Notification {
-  id           String   @id @default(uuid())
-  recipientId  String
-  title        String
-  message      String
-  type         String   // e.g. 'PATIENT_APPROVAL', 'APPOINTMENT', etc.
-  read         Boolean  @default(false)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id          String   @id @default(uuid())
+  recipientId String
+  title       String
+  message     String
+  type        String // e.g. 'PATIENT_APPROVAL', 'APPOINTMENT', etc.
+  read        Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  recipient    User     @relation(fields: [recipientId], references: [id])
+  recipient Patient @relation(fields: [recipientId], references: [id])
 
+  // This relation to User is not needed for notifications to patients.
+  // User   User?   @relation(fields: [userId], references: [id])
+  // userId String?
 }
-
 
 enum NotificationType {
   APPOINTMENT
