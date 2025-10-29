@@ -1,10 +1,11 @@
 import {
   Injectable,
   Logger,
-  InternalServerErrorException,
+ InternalServerErrorException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
+import SMTPTransport = require('nodemailer/lib/smtp-transport');
 
 // Interface must be defined outside the class
 interface MailData {
@@ -21,8 +22,8 @@ export class MailService {
 
   constructor(private readonly config: ConfigService) {
     const host = this.config.get<string>('SMTP_HOST') || 'smtp.gmail.com';
-    const port = Number(this.config.get<string>('SMTP_PORT') || 465);
-    const secure = this.config.get<string>('SMTP_SECURE') === 'true' || port === 465;
+    const port = Number(this.config.get<string>('SMTP_PORT') || 587);
+    const secure = port === 465; // Use true for 465, false for other ports like 587
 
     this.transporter = nodemailer.createTransport({
       host,
@@ -68,7 +69,10 @@ export class MailService {
       this.logger.log(`Mail sent to ${to} (messageId=${(result as any)?.messageId})`);
       return result;
     } catch (err) {
-      this.logger.error(`Failed to send email to ${to}`, (err as any).stack || err);
+      const transportOptions = this.transporter.options as SMTPTransport.Options;
+      const host = transportOptions.host ?? 'N/A';
+      const port = transportOptions.port ?? 'N/A';
+      this.logger.error(`Failed to send email to ${to} via ${host}:${port}`, (err as any).stack || err);
       // Throw for flows that expect error; caller can catch and decide
       throw new InternalServerErrorException('Failed to send email');
     }

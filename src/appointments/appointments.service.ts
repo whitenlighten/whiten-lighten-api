@@ -29,56 +29,69 @@ export class AppointmentsService {
       let doctor: User | null = null;
       if (dto.doctorId) {
         doctor = await this.prisma.user.findUnique({ where: { id: dto.doctorId } });
+        if (!doctor) throw new NotFoundException(`Doctor with ID ${dto.doctorId} not found`);
       }
 
-      const appointment = await this.prisma.appointment.create({
-        data: {
-          ...dto,
-          status: AppointmentStatus.PENDING,
-          date: new Date(dto.date),
-        },
-      });     
-      this.logger.log(`Successfully created appointment ${appointment.id}. Sending notifications...`);
-      
-      // --- NEW EMAIL LOGIC FOR CREATED APPOINTMENT ---
-      const appointmentDate = new Date(dto.date);
-      const dateStr = appointmentDate.toLocaleDateString();
-      const timeStr = appointmentDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      const appointmentDateTime = `${dateStr} at ${timeStr}`;
+      // Step 1: Perform all database operations within a transaction.
+      const { appointment, frontdesks } = await this.prisma.$transaction(async (tx) => {
+        // Combine date and the start of the timeSlot to create a valid DateTime for `timeslot`
+        const startTime = dto.timeSlot.split('-')[0];
+        const timeslotDateTime = new Date(`${dto.date.split('T')[0]}T${startTime}:00`);
 
-      // 1. Email to Patient
-      await this.mailService.sendAppointmentNotificationToPatient(
-        patient.email,
-        patient.firstName,
-        patient.id, // Using patient ID here, assuming it's required by your mail service
-        appointmentDateTime,
-      );
+        const newAppointment = await tx.appointment.create({
+          data: {
+            patientId: dto.patientId,
+            doctorId: dto.doctorId,
+            maritalStatus: dto.maritalStatus,
+            reason: dto.reason,
+            service: dto.service,
+            status: AppointmentStatus.PENDING,
+            timeslot: timeslotDateTime,
+            date: new Date(dto.date),
+          },
+        });
+        this.logger.log(`Successfully created appointment ${newAppointment.id} in transaction.`);
 
-      // 2. Email to Doctor (similar format to publicBook notification)
-      if (doctor?.email) {
-        this.mailService.sendAppointmentNotification(
-          doctor.email,
-          'New Appointment Scheduled by Staff',
-          `Dear Dr. ${doctor.firstName} ${doctor.lastName},\n\n` +
-            `A staff member has scheduled a new appointment with ${patient.firstName} ${patient.lastName}.\n\n` +
-            `Date: ${dateStr}\nTime: ${timeStr}\nService: ${dto.service}\n` +
-            (dto.reason ? `Reason: ${dto.reason}\n` : '') +
-            `\nPlease check your schedule for this PENDING appointment.\n\nThank you!`,
-        );
-      }
+        // Also fetch any data needed for notifications within the same transaction.
+        const frontdeskUsers = await tx.user.findMany({ where: { role: 'FRONTDESK' } });
 
-      // 3. Email to Frontdesk/Admin (optional, but good practice for logging staff actions)
-      this.prisma.user.findMany({ where: { role: 'FRONTDESK' } }).then((frontdesks) => {
-        frontdesks.forEach((fd) => {
-          if (fd.email) {
-            this.mailService.sendAppointmentNotificationToFrontdesk(
-              fd.email,
-              'Internal Appointment Creation Alert',
-              `Staff member created an appointment for ${patient.firstName} ${patient.lastName} for ${dateStr} at ${timeStr}.`,
-            );
-          }
-        });
-      });
+        return { appointment: newAppointment, frontdesks: frontdeskUsers };
+      });
+
+      // Step 2: Send notifications *after* the transaction has committed.
+      this.logger.log(`Transaction committed. Sending notifications for appointment ${appointment.id}...`);
+      const appointmentDate = new Date(dto.date);
+      const dateStr = appointmentDate.toLocaleDateString();
+      const timeStr = appointmentDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const appointmentDateTime = `${dateStr} at ${timeStr}`;
+
+      // 1. Email to Patient
+      this.mailService.sendAppointmentNotificationToPatient(
+        patient.email,
+        patient.firstName,
+        patient.id,
+        appointmentDateTime,
+      ).catch(err => this.logger.error(`Failed to send patient notification for appointment ${appointment.id}`, err.stack));
+
+      // 2. Email to Doctor
+      if (doctor?.email) {
+        this.mailService.sendAppointmentNotification(
+          doctor.email,
+          'New Appointment Scheduled by Staff',
+          `Dear Dr. ${doctor.firstName} ${doctor.lastName},\n\nA staff member has scheduled a new appointment with ${patient.firstName} ${patient.lastName}.\n\nDate: ${dateStr}\nTime: ${timeStr}\nService: ${dto.service}\n${dto.reason ? `Reason: ${dto.reason}\n` : ''}\nPlease check your schedule for this PENDING appointment.\n\nThank you!`,
+        ).catch(err => this.logger.error(`Failed to send doctor notification for appointment ${appointment.id}`, err.stack));
+      }
+
+      // 3. Email to Frontdesk/Admin
+      for (const fd of frontdesks) {
+        if (fd.email) {
+          this.mailService.sendAppointmentNotificationToFrontdesk(
+            fd.email,
+            'Internal Appointment Creation Alert',
+            `Staff member created an appointment for ${patient.firstName} ${patient.lastName} for ${dateStr} at ${timeStr}.`,
+          ).catch(err => this.logger.error(`Failed to send frontdesk notification for appointment ${appointment.id}`, err.stack));
+        }
+      }
 
       return appointment;
     } catch (err: any) {
@@ -115,7 +128,9 @@ export class AppointmentsService {
         if (existingPatient.status === PatientStatus.ACTIVE) { // if existing patient.status 
           patient = existingPatient;
           const appointment = await this.prisma.appointment.create({
-            data: {
+          data: {
+            // Combine date and the start of the timeSlot to create a valid DateTime for `timeslot`
+            timeslot: new Date(`${dto.date.split('T')[0]}T${dto.timeSlot.split('-')[0]}:00`),
               patientId: patient.id,
               date: appointmentDate,
               reason: dto.reason,
@@ -145,12 +160,16 @@ export class AppointmentsService {
           });
 
           const appointment = await this.prisma.appointment.create({
-            data: {
+          data: {
+            // Combine date and the start of the timeSlot to create a valid DateTime for `timeslot`
+            timeslot: new Date(`${dto.date.split('T')[0]}T${dto.timeSlot.split('-')[0]}:00`),
               patientId: patient.id,
               date: appointmentDate,
               reason: dto.reason,
               status: AppointmentStatus.PENDING,
               service: dto.service,
+              
+             
             },
           });
           this.logger.log(`Sending pending approval update to patient: ${patient.email}`);
@@ -167,7 +186,9 @@ export class AppointmentsService {
       });
 
       const appointment = await this.prisma.appointment.create({
-        data: {
+      data: {
+        // Combine date and the start of the timeSlot to create a valid DateTime for `timeslot`
+        timeslot: new Date(`${dto.date.split('T')[0]}T${dto.timeSlot.split('-')[0]}:00`),
           patientId: patient.id,
           date: appointmentDate,
           reason: dto.reason,
@@ -178,12 +199,13 @@ export class AppointmentsService {
       this.logger.log(`New appointment ${appointment.id} created for new patient ${patient.id}`);
 
       this.logger.log(`Sending appointment notification to new patient: ${patient.email}`);
-      await this.mailService.sendAppointmentNotificationToPatient(
+      this.mailService.sendAppointmentNotificationToPatient(
         patient.email,
         patient.firstName,
-        patient.patientId,
         appointmentDateTime,
-      );
+        undefined, // No doctor name in this context
+        patient.id,
+      ).catch(err => this.logger.error(`Failed to send new patient notification for appointment ${appointment.id}`, err.stack));
 
       this.logger.log('Sending notifications to frontdesk and doctor (if applicable).');
       this.prisma.user.findMany({ where: { role: 'FRONTDESK' } }).then((frontdesks) => {
@@ -193,7 +215,7 @@ export class AppointmentsService {
               fd.email,
               'New Appointment',
               `A new appointment has been booked by ${patient.firstName} ${patient.lastName} for ${dateStr} at ${timeStr}.`,
-            );
+            ).catch(err => this.logger.error(`Failed to send frontdesk notification for new public booking ${appointment.id}`, err.stack));
           }
         });
       });
@@ -209,7 +231,7 @@ export class AppointmentsService {
                 `Date: ${dateStr}\nTime: ${timeStr}\nService: ${dto.service}\n` +
                 (dto.reason ? `Reason: ${dto.reason}\n` : '') +
                 `\nPlease log in to your dashboard for more details.\n\nThank you!`,
-            );
+            ).catch(err => this.logger.error(`Failed to send doctor notification for new public booking ${appointment.id}`, err.stack));
           }
         });
       }

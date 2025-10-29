@@ -129,8 +129,8 @@ export class PatientsController {
   @Get('/archived/all') // Example route
   @Roles(Role.SUPERADMIN, Role.ADMIN, Role.FRONTDESK)
   @ApiOperation({ summary: 'Get all archived patients' })
-  async getAllArchived(@GetUser() user: any) {
-    return this.patientsService.getallarchived(user);
+  async getAllArchived(@GetUser() user: any, @Query() query: QueryPatientsDto) {
+    return this.patientsService.getallarchived(user, query);
   }
 
 
@@ -141,7 +141,7 @@ export class PatientsController {
   @Roles(Role.SUPERADMIN, Role.ADMIN, Role.DOCTOR, Role.FRONTDESK, Role.PATIENT)
   @ApiOperation({ summary: "Get patient's appointment history" })
   async getPatientAppointments(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
     @GetUser() user: any,
     @Query() query: QueryPatientsDto,
   ) {

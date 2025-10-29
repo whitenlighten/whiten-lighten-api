@@ -20,7 +20,7 @@ export class IvTherapyService {
   // ---------------- Recipes ----------------
   async createRecipe(dto: CreateRecipeDto, userId: string) {
     try {
-        const recipe = await this.prisma.ivRecipe.findUnique({ where: { id:userId } });
+        const recipe = await this.prisma.user.findUnique({ where: { id:userId } });
     if (!recipe) throw new NotFoundException('Patient not found');
 
 

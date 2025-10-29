@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsString, IsOptional, IsDateString, IsEnum, IsNotEmpty, IsEmail, IsInt, Min, Max, IsNumber } from 'class-validator';
 import { AppointmentStatus } from './appointments.enum';
 import { Type } from 'class-transformer';
+import { MaritalStatus } from '@prisma/client';
 
 /**
  * DTO for creating an appointment (used by staff/admin)
@@ -20,6 +21,16 @@ export class CreateAppointmentDto {
   @ApiProperty({ description: 'Scheduled appointment date' })
   @IsDateString()
   date!: string; // required ISO date string
+
+  @ApiProperty({ description: 'Time slot for the appointment', example: '10:00-11:00' })
+  @IsNotEmpty()
+  @IsString()
+  timeSlot!: string;
+
+  @ApiPropertyOptional({ description: 'Marital status of the patient', enum: MaritalStatus })
+  @IsOptional()
+  @IsEnum(MaritalStatus)
+  maritalStatus?: MaritalStatus;
 
   @ApiProperty({ description: 'Reason for the appointment', required: false })
   @IsOptional()
@@ -69,6 +80,11 @@ export class PublicBookAppointmentDto {
   @ApiProperty({ description: 'Scheduled appointment date' })
   @IsDateString()
   date!: string;
+
+  @ApiProperty({ description: 'Time slot for the appointment', example: '10:00-11:00' })
+  @IsNotEmpty()
+  @IsString()
+  timeSlot!: string;
 
   @ApiProperty({ description: 'Service type', required: false })
   @IsOptional()
