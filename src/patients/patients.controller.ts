@@ -37,7 +37,7 @@ export class PatientsController {
   @Roles(Role.SUPERADMIN, Role.ADMIN, Role.FRONTDESK, Role.DOCTOR, Role.NURSE)
   @ApiOperation({ summary: 'Create patient (staff only)' })
   @ApiResponse({ status: 201, description: 'Patient created successfully.' })
-  async createPatient(@Body() dto: CreatePatientDto) {
+  async createPatient(@Body() dto: CreatePatientDto, @GetUser() user: { id: string }   ) {
     return this.patientsService.create(dto);
   }
 
@@ -125,6 +125,13 @@ export class PatientsController {
     return this.patientsService.archive(id, user);
   }
 
+  @Patch(':id/unarchive')
+  @Roles(Role.SUPERADMIN, Role.ADMIN, Role.FRONTDESK)
+  @ApiOperation({ summary: 'Unarchive a patient (Admin/Frontdesk only)' })
+  async unarchivePatient(@Param('id') id: string, @GetUser() user: any) {
+    return this.patientsService.unarchive(id, user);
+  }
+
   
   @Get('/archived/all') // Example route
   @Roles(Role.SUPERADMIN, Role.ADMIN, Role.FRONTDESK)
@@ -172,8 +179,8 @@ export class PatientsController {
     return this.patientsService.addHistory(
     patientId, 
     'DENTAL', // 👈 Hardcoded type
-    dto.notes,
-    createdById // 👈 Pass notes directly
+    dto.notes, // 👈 Pass notes directly
+    createdById
   );}
 
   @Post(':patientId/history/medical')

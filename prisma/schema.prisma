@@ -153,6 +153,15 @@ model Patient {
   approvedById  String?
   userId        String?          @unique
 
+  @@index([email])
+  @@index([phone])
+  @@index([status])
+  @@index([createdAt])
+  @@index([firstName, lastName])
+  @@index([patientId])
+  @@index([registeredById])
+  @@index([approvedById])
+  @@index([userId])
   // Relations
   user               User?            @relation("PatientProfile", fields: [userId], references: [id])
   approvedBy         User?            @relation("ApprovedPatients", fields: [approvedById], references: [id])
@@ -203,6 +212,12 @@ model ClinicalNote {
   approvedById String?
   approvedBy   User?   @relation("PatientApprovedBy", fields: [approvedById], references: [id])
 
+  @@index([patientId])
+  @@index([createdById])
+  @@index([status])
+  @@index([createdAt])
+  @@index([visitId])
+  @@index([approvedById])
   User User[] @relation("DoctorApprovedNotes")
 }
 
@@ -218,6 +233,9 @@ model Visit {
   reason    String?
   notes     String?
 
+  @@index([patientId])
+  @@index([visitDate])
+  @@index([reason])
   ClinicalNote ClinicalNote[]
 }
 
@@ -270,13 +288,11 @@ model User {
   EntSymptom              EntSymptom[]
   AestheticProcedure      AestheticProcedure[]
   AestheticConsent        AestheticConsent[]
-  IvRecipe                IvRecipe[]
+  IvRecipe                 IvRecipe[]
   IvReaction              IvReaction[]
-
-  @@index([email])
-  CreatedInvoices Invoice[] @relation("CreatedInvoices")
-  Invoice Invoice[]
-  PharmacySale PharmacySale[]
+  CreatedInvoices         Invoice[]            @relation("CreatedInvoices")
+  Invoice                 Invoice[]
+  PharmacySale            PharmacySale[]
 }
 
 // New Model for Refresh Tokens
@@ -290,6 +306,12 @@ model RefreshToken {
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@index([revoked])
+  @@index([expiresAt])
+  @@index([createdAt])
 }
 
 model AuditLog {
@@ -302,6 +324,11 @@ model AuditLog {
   createdAt  DateTime @default(now())
 
   user User? @relation("UserAuditLogs", fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([action])
+  @@index([resource])
+  @@index([resourceId])
 }
 
 model PatientHistory {
@@ -313,6 +340,11 @@ model PatientHistory {
   createdById String?
   createdBy User? @relation("CreatedPatientHistories", fields: [createdById], references: [id])
   patient   Patient  @relation(fields: [patientId], references: [id])
+
+  @@index([patientId])
+  @@index([type])
+  @@index([createdAt])
+  @@index([createdById])
 }
 
 model CommunicationLog {
@@ -322,6 +354,10 @@ model CommunicationLog {
   createdAt DateTime @default(now())
   patientId String
   patient   Patient  @relation(fields: [patientId], references: [id])
+
+  @@index([patientId])
+  @@index([type])
+  @@index([createdAt])
 } 
 
 model Appointment {
@@ -343,6 +379,12 @@ model Appointment {
   patient Patient @relation(fields: [patientId], references: [id])
   doctor  User?   @relation(fields: [doctorId], references: [id])
 
+  @@index([patientId])
+  @@index([doctorId])
+  @@index([date])
+  @@index([status])
+  @@index([timeslot])
+  @@index([createdAt])
   ClientAttendance ClientAttendance[]
   DentalChart      DentalChart[]
   DentalTreatment  DentalTreatment[]
@@ -364,6 +406,10 @@ model DentalChart {
   appointment Appointment? @relation(fields: [appointmentId], references: [id])
 
   @@index([patientId])
+  @@index([appointmentId])
+  @@index([createdAt])
+  @@index([createdById])
+  @@index([updatedBy])
 }
 
 model DentalTreatment {
@@ -382,6 +428,10 @@ model DentalTreatment {
   appointment Appointment? @relation(fields: [appointmentId], references: [id])
 
   @@index([patientId])
+  @@index([appointmentId])
+  @@index([createdAt])
+  @@index([performedBy])
+  @@index([updatedBy])
 }
 
 model DentalRecall {
@@ -396,6 +446,9 @@ model DentalRecall {
   patient Patient @relation(fields: [patientId], references: [id])
 
   @@index([patientId])
+  @@index([recallDate])
+  @@index([createdAt])
+  @@index([createdById])
 }
 
 model AestheticProcedure {
@@ -414,6 +467,13 @@ model AestheticProcedure {
   // relations
   patient        Patient          @relation(fields: [patientId], references: [id])
   doctor         User             @relation(fields: [doctorId], references: [id])
+
+  @@index([patientId])
+  @@index([doctorId])
+  @@index([status])
+  @@index([scheduledAt])
+  @@index([createdAt])
+  @@index([deletedAt])
   AestheticAddon AestheticAddon[]
 }
 
@@ -429,6 +489,12 @@ model AestheticConsent {
 
   patient Patient @relation(fields: [patientId], references: [id])
   doctor  User?   @relation(fields: [doctorId], references: [id])
+
+  @@index([patientId])
+  @@index([doctorId])
+  @@index([signedAt])
+  @@index([createdAt])
+  @@index([deletedAt])
 }
 
 model AestheticAddon {
@@ -442,6 +508,8 @@ model AestheticAddon {
   deletedAt   DateTime?
 
   procedure AestheticProcedure @relation(fields: [procedureId], references: [id])
+
+  @@index([procedureId])
 }
 
 model Reminder {
@@ -452,6 +520,11 @@ model Reminder {
   scheduledAt DateTime
   sent        Boolean  @default(false)
   createdAt   DateTime @default(now())
+
+  @@index([email])
+  @@index([scheduledAt])
+  @@index([sent])
+  @@index([createdAt])
 }
 
 model EntNote {
@@ -470,6 +543,12 @@ model EntNote {
   // Relations
   patient Patient @relation(fields: [patientId], references: [id])
   doctor  User    @relation(fields: [doctorId], references: [id])
+
+  @@index([patientId])
+  @@index([doctorId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([deletedAt])
 }
 
 model EntSymptom {
@@ -487,6 +566,11 @@ model EntSymptom {
 
   patient Patient @relation(fields: [patientId], references: [id])
   doctor  User    @relation(fields: [doctorId], references: [id])
+
+  @@index([patientId])
+  @@index([doctorId])
+  @@index([createdAt])
+  @@index([deletedAt])
 }
 
 model StaffAttendance {
@@ -498,6 +582,10 @@ model StaffAttendance {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
+  @@index([staffId])
+  @@index([clockIn])
+  @@index([clockOut])
+  @@index([createdAt])
   @@map("StaffAttendance")
 }
 
@@ -509,6 +597,11 @@ model ClientAttendance {
   status        String
   notes         String?
   createdAt     DateTime    @default(now())
+
+  @@index([appointmentId])
+  @@index([attended])
+  @@index([status])
+  @@index([createdAt])
 }
 
 model PatientCounter {
@@ -527,6 +620,10 @@ model IvRecipe {
   updatedAt   DateTime    @updatedAt
   deletedAt   DateTime?
   createdBy   User?       @relation(fields: [createdById], references: [id])
+
+  @@index([createdById])
+  @@index([createdAt])
+  @@index([deletedAt])
   sessions    IvSession[]
 }
 
@@ -544,6 +641,14 @@ model IvSession {
 
   patient   Patient      @relation(fields: [patientId], references: [id])
   recipe    IvRecipe     @relation(fields: [recipeId], references: [id])
+
+  @@index([patientId])
+  @@index([recipeId])
+  @@index([doctorId])
+  @@index([status])
+  @@index([date])
+  @@index([createdAt])
+  @@index([deletedAt])
   reactions IvReaction[]
 }
 
@@ -559,6 +664,11 @@ model IvReaction {
   deletedAt    DateTime?
 
   session    IvSession @relation(fields: [sessionId], references: [id])
+
+  @@index([sessionId])
+  @@index([type])
+  @@index([severity])
+  @@index([recordedById])
   recordedBy User?     @relation(fields: [recordedById], references: [id])
 }
 
@@ -589,6 +699,11 @@ model Invoice {
   // RELATION (new)
   payments Payment[] // ← NEW: Link multiple payments (partial, retry, refund)
 
+  @@index([patientId])
+  @@index([status])
+  @@index([issuedAt])
+  @@index([reference])
+  @@index([createdById])
   User User[] @relation("CreatedInvoices")
 }
 
@@ -604,6 +719,10 @@ model PharmacyItem {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  @@index([sku])
+  @@index([name])
+  @@index([stock])
+  @@index([createdAt])
   sales       PharmacySale[]
 }
 
@@ -616,6 +735,10 @@ model PharmacySale {
   createdById String?       // staff user who processed sale
   createdBy   User?    @relation(fields: [createdById], references: [id])
   createdAt   DateTime @default(now())
+
+  @@index([itemId])
+  @@index([createdById])
+  @@index([createdAt])
 }
 
 // Billing & payments
@@ -634,6 +757,12 @@ model Payment {
   paidAt         DateTime @default(now())
   createdById    String?  // staff user who processed
 
+  @@index([invoiceId])
+  @@index([method])
+  @@index([status])
+  @@index([transactionRef])
+  @@index([createdById])
+  @@index([paidAt])
   Patient Patient[]
 }
 
@@ -648,6 +777,12 @@ model Task {
   assignedTo  String?  // user id
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@index([title])
+  @@index([completed])
+  @@index([dueAt])
+  @@index([createdById])
+  @@index([assignedTo])
 }
 
 model NoteSuggestion {
@@ -667,6 +802,11 @@ model NoteSuggestion {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([patientId])
+  @@index([createdById])
+  @@index([status])
+  @@index([approvedById])
+  @@index([createdAt])
   User User[] @relation("NurseCreatedNotes")
 }
 
@@ -680,6 +820,12 @@ model AuditTrail {
   details    String?
   ipAddress  String? // optional JSON or description
   createdAt  DateTime @default(now())
+
+  @@index([actorId])
+  @@index([action])
+  @@index([entityType])
+  @@index([entityId])
+  @@index([createdAt])
 }
 
 model Notification {
@@ -692,6 +838,10 @@ model Notification {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  @@index([recipientId])
+  @@index([type])
+  @@index([read])
+  @@index([createdAt])
   recipient Patient @relation(fields: [recipientId], references: [id])
 
   // This relation to User is not needed for notifications to patients.

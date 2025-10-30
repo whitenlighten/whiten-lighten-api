@@ -47,8 +47,10 @@ export class ClinicalNotesService {
             // 2. Core Logic
             return await this.prisma.clinicalNote.create({
                 data: {
-                    patientId,
-                    createdById: userId,
+                    patient: {
+                        connect: { id: patientId },
+                    },
+                    createdBy: { connect: { id: userId } },
                     observations: dto.observations,
                     doctorNotes: dto.doctorNotes,
                     treatmentPlan: dto.treatmentPlan,
@@ -119,15 +121,31 @@ export class ClinicalNotesService {
     // ----------------------------------------------------------------------
     // 3. GET NOTES (for a specific patient)
     // ----------------------------------------------------------------------
-    async getNotes(patientId: string) {
+    async getNotes(patientId: string, query: QueryClinicalNotesDto) {
         try {
             // NOTE: Authorization should be done in the controller before calling this (Staff/Admin)
             
-            // 1. Core Logic
-            return await this.prisma.clinicalNote.findMany({
+            // 1. Pagination
+            const page = parseInt(query.page || '1', 10);
+            const limit = Math.min(parseInt(query.limit || '20', 10), 100);
+            const skip = (page - 1) * limit;
+
+            // 2. Database query
+            const [total, data] = await this.prisma.$transaction([
+                this.prisma.clinicalNote.count({ where: { patientId } }),
+                this.prisma.clinicalNote.findMany({
                 where: { patientId },
+                skip,
+                take: limit,
                 orderBy: { createdAt: 'desc' },
-            });
+                }),
+            ]);
+
+            // 3. Return paginated response
+            return {
+                meta: { total, page, limit, pages: Math.ceil(total / limit) },
+                data,
+            };
         } catch (err: any) {
             this.logger.error(`Failed to retrieve clinical notes for patient ${patientId}.`, err.stack);
             

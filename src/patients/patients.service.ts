@@ -87,6 +87,19 @@ export class PatientsService {
     throw new BadRequestException('Email is required');
   }
 
+  // Check for an existing patient with the same email or phone number
+  const existingPatient = await this.prisma.patient.findFirst({
+    where: {
+      OR: [
+        { email: createDto.email.toLowerCase() },
+        { phone: createDto.phone }
+      ]
+    }
+  });
+
+  if (existingPatient) {
+    throw new ConflictException('A patient with this email or phone number already exists.');
+  }
    // Check for an existing user with the same email or phone number
   const existingUser = await this.prisma.user.findFirst({
     where: {
@@ -95,7 +108,6 @@ export class PatientsService {
         { phone: createDto.phone }
       ]
     },
-    include: {  patient: true },
   }); 
 
   if (existingUser) {
@@ -218,16 +230,14 @@ export class PatientsService {
       });
     }
 
-    const [total, data] = await this.prisma.$transaction([
-      this.prisma.patient.count({ where }),
-      this.prisma.patient.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { createdAt: 'desc' },
-        select,
-      }),
-    ]);
+    const total = await this.prisma.patient.count({ where });
+    const data = await this.prisma.patient.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: { createdAt: 'desc' },
+      select,
+    });
 
     return {
       meta: { total, page, limit, pages: Math.ceil(total / limit) },
@@ -409,6 +419,33 @@ export class PatientsService {
     return archive;
   }
 
+  /**
+   * =============================
+   * UNARCHIVE patient
+   * =============================
+   */
+  async unarchive(id: string, user: any) {
+    if (user.role === Role.PATIENT) {
+      throw new ForbiddenException('Patients cannot unarchive accounts');
+    }
+
+    const patient = await this.prisma.patient.findUnique({ where: { id } });
+    if (!patient) throw new NotFoundException('Patient not found');
+
+    if (patient.status !== PatientStatus.ARCHIVED) {
+      throw new BadRequestException('Only archived patients can be restored.');
+    }
+
+    const restoredPatient = await this.prisma.patient.update({
+      where: { id },
+      data: { status: PatientStatus.ACTIVE },
+    });
+
+    // You can optionally send a notification here
+
+    return restoredPatient;
+  }
+
    async getallarchived(user: any, query: QueryPatientsDto){ // Removed unused 'id'
     if (![Role.SUPERADMIN, Role.ADMIN, Role.FRONTDESK, Role.SUPERADMIN].includes(user.role)) {
       throw new ForbiddenException('You do not have permission to view archived patients.');
@@ -420,15 +457,13 @@ export class PatientsService {
 
     const where = { status: PatientStatus.ARCHIVED };
 
-    const [total, data] = await this.prisma.$transaction([
-      this.prisma.patient.count({ where }),
-      this.prisma.patient.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { createdAt: 'desc' },
-      }),
-    ]);
+    const total = await this.prisma.patient.count({ where });
+    const data = await this.prisma.patient.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: { createdAt: 'desc' },
+    });
 
     if (total === 0) throw new NotFoundException('No archived patients found');
 
@@ -454,15 +489,13 @@ export class PatientsService {
 
     const where = { patientId: id };
 
-    const [total, data] = await this.prisma.$transaction([
-      this.prisma.appointment.count({ where }),
-      this.prisma.appointment.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { date: 'desc' },
-      }),
-    ]);
+    const total = await this.prisma.appointment.count({ where });
+    const data = await this.prisma.appointment.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: { date: 'desc' },
+    });
 
     return {
       meta: { total, page, limit, pages: Math.ceil(total / limit) },
@@ -493,15 +526,13 @@ export class PatientsService {
 
     console.log('Database WHERE clause:', JSON.stringify(where));
 
-    const [total, data] = await this.prisma.$transaction([
-      this.prisma.patientHistory.count({ where }),
-      this.prisma.patientHistory.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { createdAt: 'desc' },
-      }),
-    ]);
+    const total = await this.prisma.patientHistory.count({ where });
+    const data = await this.prisma.patientHistory.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: { createdAt: 'desc' },
+    });
 
      console.log(`Total records found: ${total}, Records fetched: ${data.length}`);
 
@@ -597,15 +628,13 @@ async getCommunications( patientId: string, query: any, user: any ) {
 
   console.log('Database WHERE clause:', JSON.stringify(where));
   // 4. Execute Transaction: Count and Fetch Data
-  const [total, data] = await this.prisma.$transaction([
-    this.prisma.communicationLog.count({ where }), // Target the correct table
-    this.prisma.communicationLog.findMany({       // Target the correct table
-      where,
-      skip,
-      take: limit,
-      orderBy: { createdAt: 'desc' },
-    }),
-  ]);
+  const total = await this.prisma.communicationLog.count({ where }); // Target the correct table
+  const data = await this.prisma.communicationLog.findMany({       // Target the correct table
+    where,
+    skip,
+    take: limit,
+    orderBy: { createdAt: 'desc' },
+  });
 
   console.log(`Total records found: ${total}, Records fetched: ${data.length}`);
 

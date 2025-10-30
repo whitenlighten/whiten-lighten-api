@@ -37,7 +37,7 @@ export class ClinicalNotesController {
     @Body() dto: CreateClinicalNoteDto,
    @GetUser() user: any
   ) {
-    return this.service.addNote(patientId, user.id, user.role, dto);
+    return this.service.addNote(patientId, user.userId, user.role, dto);
   }
 
   // =====================
@@ -63,8 +63,11 @@ export class ClinicalNotesController {
   @Roles(Role.SUPERADMIN, Role.ADMIN, Role.DOCTOR, Role.NURSE, Role.FRONTDESK)
   @ApiOperation({ summary: 'Get all clinical notes for a patient' })
   @ApiResponse({ status: 200, description: 'Returns clinical notes' })
-  async getNotes(@Param('patientId') patientId: string) {
-    return this.service.getNotes(patientId);
+  async getNotes(
+    @Param('patientId') patientId: string,
+    @Query() query: QueryClinicalNotesDto
+  ) {
+    return this.service.getNotes(patientId, query); 
   }
 
 
@@ -111,3 +114,4 @@ export class ClinicalNotesController {
     return this.service.approveSuggestion(patientId, suggestionId, user.userId, user.role);
   }
 }
+ 
