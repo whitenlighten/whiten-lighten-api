@@ -22,7 +22,7 @@ export class CreateAppointmentDto {
   @IsDateString()
   date!: string; // required ISO date string
 
-  @ApiProperty({ description: 'Time slot for the appointment', example: '10:00-11:00' })
+  @ApiProperty({ description: 'Time slot for the appointment', example: 'string' })
   @IsNotEmpty()
   @IsString()
   timeSlot!: string;
@@ -84,7 +84,7 @@ export class PublicBookAppointmentDto {
   @ApiProperty({ description: 'Time slot for the appointment', example: '10:00-11:00' })
   @IsNotEmpty()
   @IsString()
-  timeSlot!: string;
+  timeSlot!: string; // ✅ This correctly enforces that the input is a string.
 
   @ApiProperty({ description: 'Service type', required: false })
   @IsOptional()

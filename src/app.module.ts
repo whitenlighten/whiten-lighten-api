@@ -26,10 +26,9 @@ import { AuditTrailModule } from './audit-trail/audit-trail.module';
 
 @Global() // 👈 makes MailService available app-wide
 @Module({
-  providers: [MailService, BillingService],
+  providers: [MailService],
   exports: [MailService],
-  imports: [BillingModule],
-  controllers: [BillingController], // 👈 export so other modules can inject it
+  // No controllers or imports are needed here for a simple global service module
 })
 export class MailModule {}
 
@@ -47,6 +46,7 @@ export class MailModule {}
     UsersModule,
     PatientsModule,
     AppointmentsModule,
+    BillingModule, // ✅ Add BillingModule here
     ClinicalNotesModule,
     RemindersModule,
     AttendanceModule,

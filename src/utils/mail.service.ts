@@ -204,5 +204,5 @@ Please log in and change your password immediately.
     `;
     return this.sendMail(to, subject, text, html);
   }
-
+ 
 }

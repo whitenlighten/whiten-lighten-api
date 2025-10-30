@@ -34,19 +34,15 @@ export class AppointmentsService {
 
       // Step 1: Perform all database operations within a transaction.
       const { appointment, frontdesks } = await this.prisma.$transaction(async (tx) => {
-        // Combine date and the start of the timeSlot to create a valid DateTime for `timeslot`
-        const startTime = dto.timeSlot.split('-')[0];
-        const timeslotDateTime = new Date(`${dto.date.split('T')[0]}T${startTime}:00`);
-
         const newAppointment = await tx.appointment.create({
           data: {
-            patientId: dto.patientId,
-            doctorId: dto.doctorId,
-            maritalStatus: dto.maritalStatus,
+            patientId: dto.patientId, // required
+            ...(dto.doctorId && { doctorId: dto.doctorId }), // optional
+            ...(dto.maritalStatus && { maritalStatus: dto.maritalStatus }), // optional
             reason: dto.reason,
             service: dto.service,
-            status: AppointmentStatus.PENDING,
-            timeslot: timeslotDateTime,
+            status: dto.status ?? AppointmentStatus.PENDING,
+            timeslot: String(dto.timeSlot),
             date: new Date(dto.date),
           },
         });
@@ -129,8 +125,7 @@ export class AppointmentsService {
           patient = existingPatient;
           const appointment = await this.prisma.appointment.create({
           data: {
-            // Combine date and the start of the timeSlot to create a valid DateTime for `timeslot`
-            timeslot: new Date(`${dto.date.split('T')[0]}T${dto.timeSlot.split('-')[0]}:00`),
+            timeslot: dto.timeSlot,
               patientId: patient.id,
               date: appointmentDate,
               reason: dto.reason,
@@ -162,14 +157,13 @@ export class AppointmentsService {
           const appointment = await this.prisma.appointment.create({
           data: {
             // Combine date and the start of the timeSlot to create a valid DateTime for `timeslot`
-            timeslot: new Date(`${dto.date.split('T')[0]}T${dto.timeSlot.split('-')[0]}:00`),
+            timeslot: dto.timeSlot,
               patientId: patient.id,
               date: appointmentDate,
               reason: dto.reason,
               status: AppointmentStatus.PENDING,
               service: dto.service,
               
-             
             },
           });
           this.logger.log(`Sending pending approval update to patient: ${patient.email}`);
@@ -187,8 +181,7 @@ export class AppointmentsService {
 
       const appointment = await this.prisma.appointment.create({
       data: {
-        // Combine date and the start of the timeSlot to create a valid DateTime for `timeslot`
-        timeslot: new Date(`${dto.date.split('T')[0]}T${dto.timeSlot.split('-')[0]}:00`),
+        timeslot: dto.timeSlot,
           patientId: patient.id,
           date: appointmentDate,
           reason: dto.reason,

@@ -37,8 +37,8 @@ export class PatientsController {
   @Roles(Role.SUPERADMIN, Role.ADMIN, Role.FRONTDESK, Role.DOCTOR, Role.NURSE)
   @ApiOperation({ summary: 'Create patient (staff only)' })
   @ApiResponse({ status: 201, description: 'Patient created successfully.' })
-  async createPatient(@Body() dto: CreatePatientDto, @GetUser('id') createdBy: string) {
-    return this.patientsService.create(dto, createdBy);
+  async createPatient(@Body() dto: CreatePatientDto) {
+    return this.patientsService.create(dto);
   }
 
   // =====================
@@ -172,8 +172,8 @@ export class PatientsController {
     return this.patientsService.addHistory(
     patientId, 
     'DENTAL', // 👈 Hardcoded type
-    dto.notes, // 👈 Pass notes directly
-    createdById
+    dto.notes,
+    createdById // 👈 Pass notes directly
   );}
 
   @Post(':patientId/history/medical')

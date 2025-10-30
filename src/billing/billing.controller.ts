@@ -1,78 +1,126 @@
-// src/billing/billing.controller.ts
+
 import {
-  Post,
+  Controller,
   Get,
-  Patch,
-  Param,
+  Post,
   Body,
+  Param,
   Query,
   UseGuards,
+  ParseUUIDPipe,
+  Res,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
-import { BillingService } from './billing.service';
-import { Role } from '@prisma/client';
-import { Controller } from '@nestjs/common';
-import { Roles } from 'src/auth/decorator/roles.decorator';
-import { RolesGuard } from 'src/auth/guards/roles.guard';
-import { CreateInvoiceDto, QueryInvoicesDto, AddPaymentDto, QueryPaymentsDto } from './billing.dto';
-import { GetUser } from 'src/common/decorator/get-user.decorator';
-import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import type { Response } from 'express';
+import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 
-@ApiTags('billing')
-@ApiBearerAuth('JWT-auth')
-@UseGuards(JwtAuthGuard, RolesGuard)
+import { Role } from '@prisma/client'; // Assumed from your service
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { RolesGuard } from 'src/auth/guards/roles.guard';
+
+import { BillingService } from './billing.service';
+import { CreateInvoiceDto, QueryInvoicesDto, AddPaymentDto } from './billing.dto';
+import { Roles } from 'src/auth/decorator/roles.decorator';
+import { GetUser } from 'src/common/decorator/get-user.decorator';
+
+@ApiTags('Billing & Payments')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard, RolesGuard) // ⬅️ Apply Auth and RBAC globally
 @Controller('billing')
 export class BillingController {
-  constructor(private readonly service: BillingService) {}
+  constructor(private readonly billingService: BillingService) {}
 
-  // =====================
-  // 1. Create invoice
-  // =====================
+  // =============================================================
+  // 1. INVOICE CREATION
+  // Restricted: FRONTDESK, ADMIN
+  // =============================================================
   @Post('invoices')
-  @Roles(Role.SUPERADMIN, Role.ADMIN, Role.FRONTDESK, Role.DOCTOR, Role.NURSE)
-  @ApiOperation({ summary: 'Create invoice for patient' })
-  @ApiResponse({ status: 201, description: 'Invoice created successfully.' })
-  async createInvoice(@Body() dto: CreateInvoiceDto, @GetUser() user: any) {
-    return this.service.createInvoice(dto, user);
+  @HttpCode(HttpStatus.CREATED)
+  @Roles(Role.FRONTDESK, Role.ADMIN) // ⬅️ RBAC Restriction
+  @ApiOperation({ summary: 'Create a new invoice for a patient.' })
+  async createInvoice(
+    @Body() createInvoiceDto: CreateInvoiceDto,
+    @GetUser() user: any,
+  ) {
+    return this.billingService.createInvoice(createInvoiceDto, user);
   }
 
-  // =====================
-  // 2. List invoices
-  // =====================
+  // =============================================================
+  // 2. LIST INVOICES
+  // Restricted: FRONTDESK, ADMIN
+  // =============================================================
   @Get('invoices')
-  @Roles(Role.SUPERADMIN, Role.ADMIN, Role.FRONTDESK, Role.DOCTOR, Role.NURSE)
-  @ApiOperation({ summary: 'List invoices with filters & pagination' })
-  async listInvoices(@Query() query: QueryInvoicesDto, @GetUser() user: any) {
-    return this.service.listInvoices(query, user);
+  @Roles(Role.FRONTDESK, Role.ADMIN) // ⬅️ RBAC Restriction
+  @ApiOperation({ summary: 'List all invoices with search and pagination.' })
+  async listInvoices(
+    @Query() query: QueryInvoicesDto, 
+    @GetUser() user: any
+  ) {
+    // The service handles filtering based on user role (e.g., if we let PATIENT role list, 
+    // the service would filter by their ID). Since the controller role limits staff, 
+    // we pass the user for potential logging/context.
+    return this.billingService.listInvoices(query, user);
   }
 
-  // =====================
-  // 3. Get single invoice
-  // =====================
+  // =============================================================
+  // 3. GET SINGLE INVOICE
+  // Restricted: PATIENT (own), FRONTDESK, ADMIN
+  // The service handles the 'PATIENT (own)' check.
+  // =============================================================
   @Get('invoices/:id')
-  @Roles(Role.SUPERADMIN, Role.ADMIN, Role.FRONTDESK, Role.DOCTOR, Role.NURSE, Role.PATIENT)
-  @ApiOperation({ summary: 'Get invoice by ID' })
-  async getInvoice(@Param('id') id: string, @GetUser() user: any) {
-    return this.service.getInvoice(id, user);
+  @Roles(Role.PATIENT, Role.FRONTDESK, Role.ADMIN) // ⬅️ RBAC Restriction
+  @ApiOperation({ summary: 'Retrieve a single invoice and its payment history.' })
+  async getInvoice(
+    @Param('id', ParseUUIDPipe) id: string,
+    @GetUser() user: any,
+  ) {
+    // The service method, getInvoice(id, user), contains the logic to assert 
+    // if a PATIENT user is viewing their own invoice.
+    return this.billingService.getInvoice(id, user);
   }
 
-  // =====================
-  // 4. Add payment
-  // =====================
-  @Post('invoices/:id/payments')
-  @Roles(Role.SUPERADMIN, Role.ADMIN, Role.FRONTDESK, Role.DOCTOR, Role.NURSE)
-  @ApiOperation({ summary: 'Add payment to an invoice' })
-  async addPayment(@Param('id') invoiceId: string, @Body() dto: AddPaymentDto, @GetUser() user: any) {
-    return this.service.addPayment(invoiceId, dto, user);
+  // =============================================================
+  // 4. ADD PAYMENT
+  // Restricted: PATIENT, FRONTDESK, ADMIN
+  // Note: PATIENT role can be restricted to only specific online payment gateways.
+  // =============================================================
+  @Post('invoices/:invoiceId/payments')
+  @HttpCode(HttpStatus.CREATED)
+  @Roles(Role.PATIENT, Role.FRONTDESK, Role.ADMIN) // ⬅️ RBAC Restriction
+  @ApiOperation({ summary: 'Record a payment against an invoice.' })
+  async addPayment(
+    @Param('invoiceId', ParseUUIDPipe) invoiceId: string,
+    @Body() addPaymentDto: AddPaymentDto,
+    @GetUser() user: any,
+  ) {
+    return this.billingService.addPayment(invoiceId, addPaymentDto, user);
   }
 
-  // =====================
-  // 5. List payments
-  // =====================
-  @Get('payments')
-  @Roles(Role.SUPERADMIN, Role.ADMIN, Role.FRONTDESK, Role.DOCTOR, Role.NURSE)
-  @ApiOperation({ summary: 'List payments with filters & pagination' })
-  async listPayments(@Query() query: QueryPaymentsDto, @GetUser() user: any) {
-    return this.service.listPayments(query, user);
+  // =============================================================
+  // 5. EXPORT INVOICES (CSV)
+  // Restricted: ADMIN only (as per requirement)
+  // Uses streaming response.
+  // =============================================================
+  @Get('invoices/export/csv')
+  @Roles(Role.ADMIN) // ⬅️ RBAC Restriction
+  @ApiOperation({ summary: 'Export all filtered invoices as a CSV file.' })
+  async exportInvoicesCsv(
+    @Query() query: QueryInvoicesDto,
+    @Res() res: Response,
+  ) {
+    // NOTE: In a real app, this should call a service method that generates the CSV string/stream
+    
+    // Set headers for CSV download
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="invoices_${new Date().toISOString()}.csv"`);
+
+    const mockCsvData = "ID,Reference,Amount,Status\n1,REF-001,100.00,PAID\n2,REF-002,50.00,UNPAID";
+    
+    // In a real application, pipe the stream here:
+    // const csvStream = this.billingService.generateInvoicesCsv(query);
+    // csvStream.pipe(res);
+
+    res.send(mockCsvData); // Mocked for demonstration
   }
 }

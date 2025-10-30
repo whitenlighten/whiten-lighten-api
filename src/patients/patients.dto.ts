@@ -36,6 +36,11 @@ export class CreatePatientDto {
   @IsString()
   dateOfBirth?: string;
 
+  @ApiProperty({example: '25'})
+  @IsOptional()
+  @IsNumberString()
+  age?: string; // Changed to IsNumberString to allow string input that is a number
+
   @ApiPropertyOptional({ enum: Gender, example: Gender.FEMALE })
   @IsOptional()
   @IsEnum(Gender)
@@ -71,7 +76,12 @@ export class SelfRegisterPatientDto {
   @IsOptional()
   // Use IsEnum to validate values match Gender enum
   @IsString()
-  gender?: Gender;
+  gender?: Gender; 
+
+  @ApiPropertyOptional({example: '25'})
+  @IsOptional()
+  @IsNumberString()
+  age?: string;
 }
 
 

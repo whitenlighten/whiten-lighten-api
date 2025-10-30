@@ -45,6 +45,7 @@ enum PaymentMethod {
   HMO
   TRANSFER
   CARD
+  GATEWAY
 }
 
 enum AppointmentStatus {
@@ -273,6 +274,9 @@ model User {
   IvReaction              IvReaction[]
 
   @@index([email])
+  CreatedInvoices Invoice[] @relation("CreatedInvoices")
+  Invoice Invoice[]
+  PharmacySale PharmacySale[]
 }
 
 // New Model for Refresh Tokens
@@ -330,7 +334,7 @@ model Appointment {
   updatedAt DateTime          @updatedAt
   reason    String?
   service   String            @default("General Consultation")
-  timeslot  DateTime
+  timeslot  String
   maritalStatus MaritalStatus?
 
 
@@ -573,32 +577,77 @@ model Invoice {
   metadata    Json?
 
   // timestamps
-  issuedAt  DateTime  @default(now())
+  createdAt DateTime  @default(now()) @map("created_at")
+  issuedAt  DateTime  @default(now()) @map("issued_at")
   paidAt    DateTime?
   updatedAt DateTime  @updatedAt
 
+  createdBy   User   @relation(fields: [createdById], references: [id])
+  createdById String
+  
+
   // RELATION (new)
   payments Payment[] // ← NEW: Link multiple payments (partial, retry, refund)
+
+  User User[] @relation("CreatedInvoices")
 }
 
+
+// Pharmacy items & sales
+model PharmacyItem {
+  id          String   @id @default(cuid())
+  sku         String   @unique
+  name        String
+  description String?
+  unitPrice   Float
+  stock       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  sales       PharmacySale[]
+}
+
+model PharmacySale {
+  id          String   @id @default(cuid())
+  itemId      String
+  item        PharmacyItem @relation(fields: [itemId], references: [id])
+  quantity    Int
+  totalAmount Float
+  createdById String?       // staff user who processed sale
+  createdBy   User?    @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+}
+
+// Billing & payments
+
+
 model Payment {
-  id        String  @id @default(cuid())
-  invoiceId String
-  invoice   Invoice @relation(fields: [invoiceId], references: [id])
-
-  amount Float
-  method PaymentMethod // reuse your existing enum
-  status PaymentStatus @default(PENDING)
-
-  // gateway/ops
-  transactionRef String? @unique
-  gateway        String? // e.g. "paystack", "flutterwave", "manual"
+  id             String   @id @default(cuid())
+  invoiceId      String
+  invoice        Invoice  @relation(fields: [invoiceId], references: [id])
+  amount         Float
   note           String?
+  method         String   // CASH | TRANSFER | CARD | PAYSTACK
+  gateway        String?  // gateway name / meta
+  transactionRef String?  @unique
+  status         String   @default("SUCCESS") // SUCCESS, FAILED, PENDING
+  paidAt         DateTime @default(now())
+  createdById    String?  // staff user who processed
 
-  createdAt DateTime  @default(now())
-  paidAt    DateTime?
-  Patient   Patient?  @relation(fields: [patientId], references: [id])
-  patientId String?
+  Patient Patient[]
+}
+
+// tasks / automation
+model Task {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  dueAt       DateTime?
+  completed   Boolean  @default(false)
+  createdById String?
+  assignedTo  String?  // user id
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model NoteSuggestion {
