@@ -213,22 +213,6 @@ export class AppointmentsService {
         });
       });
 
-      if (dto.doctorId) {
-        this.prisma.user.findUnique({ where: { id: dto.doctorId } }).then((doctor) => {
-          if (doctor?.email) {
-            this.mailService.sendAppointmentNotification(
-              doctor.email,
-              'New Appointment Booked',
-              `Dear Dr. ${doctor.firstName} ${doctor.lastName},\n\n` +
-                `You have a new appointment scheduled with ${patient.firstName} ${patient.lastName}.\n\n` +
-                `Date: ${dateStr}\nTime: ${timeStr}\nService: ${dto.service}\n` +
-                (dto.reason ? `Reason: ${dto.reason}\n` : '') +
-                `\nPlease log in to your dashboard for more details.\n\nThank you!`,
-            ).catch(err => this.logger.error(`Failed to send doctor notification for new public booking ${appointment.id}`, err.stack));
-          }
-        });
-      }
-
       return appointment;
     } catch (err: any) {
       this.logger.error(`Failed during public booking for email ${dto.email}: ${err.message}`, err.stack);

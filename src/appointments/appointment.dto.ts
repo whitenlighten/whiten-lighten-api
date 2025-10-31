@@ -71,12 +71,6 @@ export class PublicBookAppointmentDto {
   @IsString()
   phone?: string;
 
-  // Appointment info
-  @ApiProperty({ description: 'Doctor ID (optional)', required: false })
-  @IsOptional()
-  @IsString()
-  doctorId?: string;
-
   @ApiProperty({ description: 'Scheduled appointment date' })
   @IsDateString()
   date!: string;
