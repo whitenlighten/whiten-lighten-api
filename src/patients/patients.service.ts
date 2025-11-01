@@ -4,8 +4,9 @@ import {
   NotFoundException,
   BadRequestException,
   InternalServerErrorException,
+  ConflictException,
 } from '@nestjs/common';
-import { Role, PatientStatus, RegistrationType } from '@prisma/client';
+import { Role, PatientStatus, RegistrationType, Prisma } from '@prisma/client';
 import { PrismaService } from 'prisma/prisma.service';
 import { AddPatientHistoryDto, CreatePatientDto, QueryPatientsDto, SelfRegisterPatientDto, UpdatePatientDto } from './patients.dto';
 import { getPatientId } from 'src/utils/patient-id.util';
@@ -25,10 +26,7 @@ export class PatientsService {
    * CREATE patient (staff-created)
    * =============================
    */
-  async create(createDto: CreatePatientDto, user: any) {
-    if (![Role.SUPERADMIN, Role.ADMIN, Role.FRONTDESK, Role.DOCTOR].includes(user.role)) {
-      throw new ForbiddenException('You are not allowed to create patients');
-    }
+  async create(createDto: CreatePatientDto,) {
 
     if (!createDto.dateOfBirth) {
       throw new BadRequestException('Date of birth is required');
@@ -48,9 +46,9 @@ export class PatientsService {
       data: {
         ...createDto,
         status: PatientStatus.ACTIVE,
-        createdById: user.id,
         dateOfBirth: new Date(createDto.dateOfBirth),
         gender: createDto.gender,
+        age: createDto.age ? parseInt(createDto.age, 10) : undefined,
         phone: createDto.phone,
         email: createDto.email,
         address: createDto.address,
@@ -67,7 +65,7 @@ export class PatientsService {
     });
 
     // Return only the input data plus key generated fields
-    const { email, firstName, lastName, phone, gender, dateOfBirth, address } = createDto;
+    const { email, firstName, lastName, phone, gender, dateOfBirth, address, age } = createDto;
     return {
       id: patient.id,
       patientId: patient.patientId,
@@ -75,7 +73,7 @@ export class PatientsService {
       email,
       firstName,
       lastName,
-      phone, gender, dateOfBirth, address
+      phone, gender, dateOfBirth, address, age
     };
   }
 
@@ -89,6 +87,19 @@ export class PatientsService {
     throw new BadRequestException('Email is required');
   }
 
+  // Check for an existing patient with the same email or phone number
+  const existingPatient = await this.prisma.patient.findFirst({
+    where: {
+      OR: [
+        { email: createDto.email.toLowerCase() },
+        { phone: createDto.phone }
+      ]
+    }
+  });
+
+  if (existingPatient) {
+    throw new ConflictException('A patient with this email or phone number already exists.');
+  }
    // Check for an existing user with the same email or phone number
   const existingUser = await this.prisma.user.findFirst({
     where: {
@@ -97,7 +108,6 @@ export class PatientsService {
         { phone: createDto.phone }
       ]
     },
-    include: {  patient: true },
   }); 
 
   if (existingUser) {
@@ -131,6 +141,7 @@ export class PatientsService {
         email: createDto.email.toLowerCase(),
         phone: createDto.phone,
         gender: createDto.gender,
+        age: createDto.age ? parseInt(createDto.age, 10) : undefined,
         status: PatientStatus.PENDING,
         patientId: await getPatientId(),
         registrationType: RegistrationType.SELF,
@@ -146,14 +157,14 @@ export class PatientsService {
     });
 
     // Return only the input data plus key generated fields
-    const { email, firstName, lastName, phone, gender } = createDto;
+    const { email, firstName, lastName, phone, gender, age } = createDto;
     return {
       id: patient.id,
       patientId: patient.patientId,
       status: patient.status,
       email,
       firstName,
-      lastName, phone, gender
+      lastName, phone, gender, age
     };
   } catch (error) {
     console.error('Error during self-registration:', error);
@@ -219,16 +230,14 @@ export class PatientsService {
       });
     }
 
-    const [total, data] = await this.prisma.$transaction([
-      this.prisma.patient.count({ where }),
-      this.prisma.patient.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { createdAt: 'desc' },
-        select,
-      }),
-    ]);
+    const total = await this.prisma.patient.count({ where });
+    const data = await this.prisma.patient.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: { createdAt: 'desc' },
+      select,
+    });
 
     return {
       meta: { total, page, limit, pages: Math.ceil(total / limit) },
@@ -285,6 +294,11 @@ export class PatientsService {
    * =============================
    */
   async update(id: string, updateDto: UpdatePatientDto, user: { id: string; role: Role }) {
+    console.log(`[update] Starting update for patient ID: ${id}`);
+    console.log(`[update] Received DTO:`, updateDto);
+    console.log(`[update] User performing update:`, user);
+
+
     const patient = await this.prisma.patient.findUnique({ where: { id } });
     if (!patient) throw new NotFoundException('Patient not found');
 
@@ -296,29 +310,84 @@ export class PatientsService {
       throw new ForbiddenException('Only active patients can update profile');
     }
 
+    // If email is being updated, check if it's already taken by another patient
+    if (updateDto.email && updateDto.email !== patient.email) {
+      const existingPatientWithEmail = await this.prisma.patient.findUnique({
+        where: { email: updateDto.email },
+      });
+
+      if (existingPatientWithEmail && existingPatientWithEmail.id !== id) {
+        console.error(`[update] Email conflict: ${updateDto.email} is already in use by patient ID ${existingPatientWithEmail.id}`);
+        throw new ConflictException('This email address is already in use by another patient.');
+      }
+    }
+
+    // If phone is being updated, check if it's already taken by another patient
+    if (updateDto.phone && updateDto.phone !== patient.phone) {
+      const existingPatientWithPhone = await this.prisma.patient.findUnique({
+        where: { phone: updateDto.phone },
+      });
+
+      if (existingPatientWithPhone && existingPatientWithPhone.id !== id) {
+        console.error(`[update] Phone conflict: ${updateDto.phone} is already in use by patient ID ${existingPatientWithPhone.id}`);
+        throw new ConflictException('This phone number is already in use by another patient.');
+      }
+    }
+
     const dataToUpdate: any = { ...updateDto };
 
     // Convert dateOfBirth string to Date object if it exists
     if (updateDto.dateOfBirth) {
       dataToUpdate.dateOfBirth = new Date(updateDto.dateOfBirth);
     }
-    const updated = await this.prisma.patient.update({ where: { id }, data: dataToUpdate });
-    // 👇 Notify patient of approval
-    await this.notificationsService.create({
-      title: 'Registration Approved',
-      message: `Congratulations ${updated.firstName}, your registration has been approved.`,
-      type: 'PATIENT',
-      recipientId: updated.id,
-    });
+    // Convert age string to number if it exists
+    if (updateDto.age !== undefined) {
+      dataToUpdate.age = parseInt(updateDto.age, 10);
+    }
 
-    // Return only the updated data plus key identifiers
-    const response: any = { ...updateDto };
-    response.id = updated.id;
-    response.patientId = updated.patientId;
-    response.updatedAt = updated.updatedAt;
+    console.log('[update] Data prepared for Prisma:', dataToUpdate);
 
-    // Clean up undefined properties from the DTO
-    return Object.fromEntries(Object.entries(response).filter(([_, v]) => v !== undefined));
+    try {
+      const updated = await this.prisma.patient.update({ where: { id }, data: dataToUpdate });
+      console.log('[update] Successfully updated patient in DB:', updated);
+
+      // 👇 Notify patient of profile update
+      await this.notificationsService.create({
+        title: 'Profile Updated',
+        message: `Your patient profile has been successfully updated.`,
+        type: 'PATIENT',
+        recipientId: updated.id,
+      });
+      console.log('[update] Notification sent successfully.');
+
+      // Return a subset of the updated patient data for the response
+      return {
+        id: updated.id,
+        patientId: updated.patientId,
+        status: updated.status,
+        email: updated.email,
+        firstName: updated.firstName,
+        lastName: updated.lastName,
+        phone: updated.phone,
+        gender: updated.gender,
+        dateOfBirth: updated.dateOfBirth?.toISOString().split('T')[0], // Format as YYYY-MM-DD
+        address: updated.address,
+        age: updated.age, // This will be the number from the database
+        updatedAt: updated.updatedAt,
+      };
+    } catch (error) {
+      console.error('[update] Error during prisma.patient.update:', error);
+      // Check if the error is a known Prisma error for unique constraint violation
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        if (error.code === 'P2002' && (error.meta?.target as string[])?.includes('email')) {
+          throw new ConflictException('This email address is already in use.');
+        }
+        if (error.code === 'P2002' && (error.meta?.target as string[])?.includes('phone')) {
+          throw new ConflictException('This phone number is already in use.');
+        }
+      }
+      throw new InternalServerErrorException('Failed to update patient details.');
+    }
   }
 
   /**
@@ -350,6 +419,33 @@ export class PatientsService {
     return archive;
   }
 
+  /**
+   * =============================
+   * UNARCHIVE patient
+   * =============================
+   */
+  async unarchive(id: string, user: any) {
+    if (user.role === Role.PATIENT) {
+      throw new ForbiddenException('Patients cannot unarchive accounts');
+    }
+
+    const patient = await this.prisma.patient.findUnique({ where: { id } });
+    if (!patient) throw new NotFoundException('Patient not found');
+
+    if (patient.status !== PatientStatus.ARCHIVED) {
+      throw new BadRequestException('Only archived patients can be restored.');
+    }
+
+    const restoredPatient = await this.prisma.patient.update({
+      where: { id },
+      data: { status: PatientStatus.ACTIVE },
+    });
+
+    // You can optionally send a notification here
+
+    return restoredPatient;
+  }
+
    async getallarchived(user: any, query: QueryPatientsDto){ // Removed unused 'id'
     if (![Role.SUPERADMIN, Role.ADMIN, Role.FRONTDESK, Role.SUPERADMIN].includes(user.role)) {
       throw new ForbiddenException('You do not have permission to view archived patients.');
@@ -361,15 +457,13 @@ export class PatientsService {
 
     const where = { status: PatientStatus.ARCHIVED };
 
-    const [total, data] = await this.prisma.$transaction([
-      this.prisma.patient.count({ where }),
-      this.prisma.patient.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { createdAt: 'desc' },
-      }),
-    ]);
+    const total = await this.prisma.patient.count({ where });
+    const data = await this.prisma.patient.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: { createdAt: 'desc' },
+    });
 
     if (total === 0) throw new NotFoundException('No archived patients found');
 
@@ -395,15 +489,13 @@ export class PatientsService {
 
     const where = { patientId: id };
 
-    const [total, data] = await this.prisma.$transaction([
-      this.prisma.appointment.count({ where }),
-      this.prisma.appointment.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { date: 'desc' },
-      }),
-    ]);
+    const total = await this.prisma.appointment.count({ where });
+    const data = await this.prisma.appointment.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: { date: 'desc' },
+    });
 
     return {
       meta: { total, page, limit, pages: Math.ceil(total / limit) },
@@ -434,15 +526,13 @@ export class PatientsService {
 
     console.log('Database WHERE clause:', JSON.stringify(where));
 
-    const [total, data] = await this.prisma.$transaction([
-      this.prisma.patientHistory.count({ where }),
-      this.prisma.patientHistory.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { createdAt: 'desc' },
-      }),
-    ]);
+    const total = await this.prisma.patientHistory.count({ where });
+    const data = await this.prisma.patientHistory.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: { createdAt: 'desc' },
+    });
 
      console.log(`Total records found: ${total}, Records fetched: ${data.length}`);
 
@@ -538,15 +628,13 @@ async getCommunications( patientId: string, query: any, user: any ) {
 
   console.log('Database WHERE clause:', JSON.stringify(where));
   // 4. Execute Transaction: Count and Fetch Data
-  const [total, data] = await this.prisma.$transaction([
-    this.prisma.communicationLog.count({ where }), // Target the correct table
-    this.prisma.communicationLog.findMany({       // Target the correct table
-      where,
-      skip,
-      take: limit,
-      orderBy: { createdAt: 'desc' },
-    }),
-  ]);
+  const total = await this.prisma.communicationLog.count({ where }); // Target the correct table
+  const data = await this.prisma.communicationLog.findMany({       // Target the correct table
+    where,
+    skip,
+    take: limit,
+    orderBy: { createdAt: 'desc' },
+  });
 
   console.log(`Total records found: ${total}, Records fetched: ${data.length}`);
 

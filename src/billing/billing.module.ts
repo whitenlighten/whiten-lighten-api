@@ -3,9 +3,10 @@ import { Module } from '@nestjs/common';
 import { BillingService } from './billing.service';
 import { BillingController } from './billing.controller';
 import { PrismaModule } from 'prisma/prisma.module';
+import { AuditTrailModule } from 'src/audit-trail/audit-trail.module';
 
 @Module({
-  imports: [PrismaModule], // ✅ import here
+  imports: [PrismaModule, AuditTrailModule],
   providers: [BillingService],
   controllers: [BillingController],
 })

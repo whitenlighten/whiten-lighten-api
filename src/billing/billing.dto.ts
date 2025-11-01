@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { InvoiceStatus, PaymentMethod } from '@prisma/client';
-import { IsEnum, IsNotEmpty, IsNumber, IsOptional, IsPositive, IsString } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { IsEnum, IsNotEmpty, IsNumber, IsOptional, IsPositive, IsString, IsUUID, Min } from 'class-validator';
 
 export class CreateInvoiceDto {
   @ApiProperty({ description: 'Patient ID (UUID from Patient model)' })
@@ -17,6 +18,7 @@ export class CreateInvoiceDto {
   @IsOptional()
   @IsString()
   currency?: string;
+
 
   @ApiPropertyOptional({ description: 'Human readable description' })
   @IsOptional()
@@ -36,14 +38,18 @@ export class CreateInvoiceDto {
 
 export class QueryInvoicesDto {
   @ApiPropertyOptional({ example: '1' })
+  @Transform(({ value }) => parseInt(value, 10))
   @IsOptional()
-  @IsString()
-  page?: string;
+  @IsNumber()
+  @Min(1)
+  page?: number;
 
   @ApiPropertyOptional({ example: '20' })
+  @Transform(({ value }) => parseInt(value, 10))
   @IsOptional()
-  @IsString()
-  limit?: string;
+  @IsNumber()
+  @Min(1)
+  limit?: number;
 
   @ApiPropertyOptional({ description: 'Search by patient name/email/reference' })
   @IsOptional()
@@ -54,6 +60,11 @@ export class QueryInvoicesDto {
   @IsOptional()
   @IsEnum(InvoiceStatus)
   status?: InvoiceStatus;
+
+  @ApiPropertyOptional({ description: 'Filter by patient ID' })
+  @IsOptional()
+  @IsUUID()
+  patientId?: string;
 }
 
 export class AddPaymentDto {

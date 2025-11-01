@@ -59,7 +59,7 @@ export class NotificationsController {
     // All other roles (ADMIN, DOCTOR, etc.) get the Admin/Staff view
     return this.notificationsService.findAllForAdmin(query, user);
   }
-
+ 
   // 3. MARK AS READ: Uses GetUser for cleaner data access.
   @Patch(':id/read')
   @ApiOperation({ summary: 'Mark a notification as read' })
