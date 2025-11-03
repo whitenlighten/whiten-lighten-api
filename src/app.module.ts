@@ -1,5 +1,6 @@
 import { Global, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { AuthModule } from './auth/auth.module';
 import { PrismaModule } from 'prisma/prisma.module';
 import { MailService } from './utils/mail.service';
@@ -11,8 +12,6 @@ import { PatientsModule } from './patients/patients.module';
 import { AppointmentsModule } from './appointments/appointments.module';
 import { ClinicalNotesModule } from './clinical-notes/clinical-notes.module';
 import { BillingModule } from './billing/billing.module';
-import { BillingService } from './billing/billing.service';
-import { BillingController } from './billing/billing.controller';
 import { ScheduleModule } from '@nestjs/schedule';
 import { RemindersModule } from './reminders/reminders.module';
 import { AttendanceModule } from './attendance/attendance.module';
@@ -22,6 +21,7 @@ import { AestheticsModule } from './aesthetics/aesthetics.module';
 import { IvTherapyModule } from './iv-therapy/iv-therapy.module';
 import { NotificationsModule } from './notification/notifications.module';
 import { AuditTrailModule } from './audit-trail/audit-trail.module';
+import { TasksModule } from './task/task.module';
 ;
 
 @Global() // 👈 makes MailService available app-wide
@@ -39,6 +39,7 @@ export class MailModule {}
       envFilePath: '.env',
       
     }),
+    EventEmitterModule.forRoot(), // ✅ Initialize EventEmitter globally
     ScheduleModule.forRoot(),
     AuthModule,
     PrismaModule,
@@ -56,6 +57,7 @@ export class MailModule {}
    IvTherapyModule,
    NotificationsModule,
    AuditTrailModule,
+   TasksModule,
    
   ],
   providers: [

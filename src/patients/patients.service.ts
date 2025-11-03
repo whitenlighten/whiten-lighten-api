@@ -65,7 +65,7 @@ export class PatientsService {
     });
 
     // Return only the input data plus key generated fields
-    const { email, firstName, lastName, phone, gender, dateOfBirth, address, age } = createDto;
+    const { email, firstName, lastName, phone, gender, dateOfBirth, address, age, maritalStatus, bloodGroup } = createDto;
     return {
       id: patient.id,
       patientId: patient.patientId,
@@ -73,7 +73,9 @@ export class PatientsService {
       email,
       firstName,
       lastName,
-      phone, gender, dateOfBirth, address, age
+      phone, gender, dateOfBirth, address, age,
+      maritalStatus,
+      bloodGroup
     };
   }
 
@@ -360,21 +362,8 @@ export class PatientsService {
       });
       console.log('[update] Notification sent successfully.');
 
-      // Return a subset of the updated patient data for the response
-      return {
-        id: updated.id,
-        patientId: updated.patientId,
-        status: updated.status,
-        email: updated.email,
-        firstName: updated.firstName,
-        lastName: updated.lastName,
-        phone: updated.phone,
-        gender: updated.gender,
-        dateOfBirth: updated.dateOfBirth?.toISOString().split('T')[0], // Format as YYYY-MM-DD
-        address: updated.address,
-        age: updated.age, // This will be the number from the database
-        updatedAt: updated.updatedAt,
-      };
+      // Return the full updated patient object
+      return updated;
     } catch (error) {
       console.error('[update] Error during prisma.patient.update:', error);
       // Check if the error is a known Prisma error for unique constraint violation

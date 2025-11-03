@@ -201,17 +201,17 @@ export class AppointmentsService {
       ).catch(err => this.logger.error(`Failed to send new patient notification for appointment ${appointment.id}`, err.stack));
 
       this.logger.log('Sending notifications to frontdesk and doctor (if applicable).');
-      this.prisma.user.findMany({ where: { role: 'FRONTDESK' } }).then((frontdesks) => {
-        frontdesks.forEach((fd) => {
-          if (fd.email) {
-            this.mailService.sendAppointmentNotificationToFrontdesk(
-              fd.email,
-              'New Appointment',
-              `A new appointment has been booked by ${patient.firstName} ${patient.lastName} for ${dateStr} at ${timeStr}.`,
-            ).catch(err => this.logger.error(`Failed to send frontdesk notification for new public booking ${appointment.id}`, err.stack));
-          }
-        });
-      });
+      // Use async/await for cleaner code instead of .then()
+      const frontdesks = await this.prisma.user.findMany({ where: { role: 'FRONTDESK' } });
+      for (const fd of frontdesks) {
+        if (fd.email) {
+          this.mailService.sendAppointmentNotificationToFrontdesk(
+            fd.email,
+            'New Appointment',
+            `A new appointment has been booked by ${patient.firstName} ${patient.lastName} for ${dateStr} at ${timeStr}.`,
+          ).catch(err => this.logger.error(`Failed to send frontdesk notification for new public booking ${appointment.id}`, err.stack));
+        }
+      }
 
       return appointment;
     } catch (err: any) {
@@ -380,8 +380,8 @@ export class AppointmentsService {
       ];
     }
 
-    const [total, data] = await this.prisma.$transaction([
-      this.prisma.appointment.count({ where }),
+    const [total, data] = await Promise.all([
+      this.prisma.appointment.count({ where }), // Run count query
       this.prisma.appointment.findMany({
         where,
         skip,

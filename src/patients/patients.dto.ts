@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
-import { Gender } from '@prisma/client';
-import {
+import { BloodGroup, Gender, MaritalStatus, PaymentMethod } from '@prisma/client';
+import { 
   IsEmail,
   IsEnum,
   IsNotEmpty,
@@ -50,6 +50,19 @@ export class CreatePatientDto {
   @IsOptional()
   @IsString()
   address?: string;
+
+  @ApiPropertyOptional({ enum: MaritalStatus, example: MaritalStatus.SINGLE })
+  @IsOptional()
+  @IsEnum(MaritalStatus)
+  maritalStatus?: MaritalStatus;
+
+  @ApiPropertyOptional({ enum: BloodGroup, example: BloodGroup.O_POS })
+  @IsOptional()
+  @IsEnum(BloodGroup)
+  bloodGroup?: BloodGroup;
+
+
+
 }
 
 export class SelfRegisterPatientDto {
@@ -84,8 +97,82 @@ export class SelfRegisterPatientDto {
   age?: string;
 }
 
+export class UpdatePatientDto extends PartialType(CreatePatientDto) {
+  @ApiPropertyOptional({ example: 'Chukwu' })
+  @IsOptional()
+  @IsString()
+  middleName?: string;
 
-export class UpdatePatientDto extends PartialType(CreatePatientDto) {}
+  @ApiPropertyOptional({ example: 'Engineer' })
+  @IsOptional()
+  @IsString()
+  occupation?: string;
+
+  @ApiPropertyOptional({ example: 'Christianity' })
+  @IsOptional()
+  @IsString()
+  religion?: string;
+
+  @ApiPropertyOptional({ enum: BloodGroup, example: BloodGroup.O_POS })
+  @IsOptional()
+  @IsEnum(BloodGroup)
+  bloodGroup?: BloodGroup;
+
+  @ApiPropertyOptional({ example: 'AA' })
+  @IsOptional()
+  @IsString()
+  genotype?: string;
+
+  @ApiPropertyOptional({ example: '+2348011223344' })
+  @IsOptional()
+  @IsPhoneNumber('NG')
+  alternatePhone?: string;
+
+  @ApiPropertyOptional({ example: 'Lagos' })
+  @IsOptional()
+  @IsString()
+  state?: string;
+
+  @ApiPropertyOptional({ example: 'Ikeja' })
+  @IsOptional()
+  @IsString()
+  lga?: string;
+
+  @ApiPropertyOptional({ example: 'John Doe' })
+  @IsOptional()
+  @IsString()
+  emergencyName?: string;
+
+  @ApiPropertyOptional({ example: '+2349087654321' })
+  @IsOptional()
+  @IsPhoneNumber('NG')
+  emergencyPhone?: string;
+
+  @ApiPropertyOptional({ example: 'Spouse' })
+  @IsOptional()
+  @IsString()
+  emergencyRelation?: string;
+
+  @ApiPropertyOptional({ example: 'Pollen, Dust' })
+  @IsOptional()
+  @IsString()
+  allergies?: string;
+
+  @ApiPropertyOptional({ example: 'Asthma' })
+  @IsOptional()
+  @IsString()
+  chronicConditions?: string;
+
+  @ApiPropertyOptional({ example: 'HMO Corp' })
+  @IsOptional()
+  @IsString()
+  insuranceProvider?: string;
+
+  @ApiPropertyOptional({ example: 'HMO123456' })
+  @IsOptional()
+  @IsString()
+  insuranceNumber?: string;
+}
 
 export class ApprovePatientDto {
   @ApiProperty({ description: 'Patient ID to approve', example: 'uuid' })
