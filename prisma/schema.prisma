@@ -145,30 +145,20 @@ model Patient {
   primaryDoctorId   String? // linked to Doctor
   status            PatientStatus    @default(ACTIVE)
 
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  approvedAt   DateTime?
-  deletedAt    DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  approvedAt    DateTime?
+  deletedAt     DateTime?
   createdById   String?
   approvedById  String?
-  userId        String?          @unique
-
-  @@index([email])
-  @@index([phone])
-  @@index([status])
-  @@index([createdAt])
-  @@index([firstName, lastName])
-  @@index([patientId])
-  @@index([registeredById])
-  @@index([approvedById])
-  @@index([userId])
+  userId        String?        @unique
   // Relations
-  user               User?            @relation("PatientProfile", fields: [userId], references: [id])
-  approvedBy         User?            @relation("ApprovedPatients", fields: [approvedById], references: [id])
-  clinicalNotes      ClinicalNote[]
-  visits             Visit[]
-  invoices           Invoice[]
-  Appointment        Appointment[]
+  user          User?          @relation("PatientProfile", fields: [userId], references: [id])
+  approvedBy    User?          @relation("ApprovedPatients", fields: [approvedById], references: [id])
+  clinicalNotes ClinicalNote[]
+  visits        Visit[]
+  invoices      Invoice[]
+  Appointment   Appointment[]
 
   NoteSuggestion     NoteSuggestion[]
   PatientHistory     PatientHistory[]
@@ -182,7 +172,18 @@ model Patient {
   AestheticConsent   AestheticConsent[]
   Payment            Payment[]
   IvSession          IvSession[]
-  Notification Notification[]
+  Notification       Notification[]
+  Task               Task[]
+
+  @@index([email])
+  @@index([phone])
+  @@index([status])
+  @@index([createdAt])
+  @@index([firstName, lastName])
+  @@index([patientId])
+  @@index([registeredById])
+  @@index([approvedById])
+  @@index([userId])
 }
 
 /**
@@ -211,6 +212,7 @@ model ClinicalNote {
 
   approvedById String?
   approvedBy   User?   @relation("PatientApprovedBy", fields: [approvedById], references: [id])
+  User         User[]  @relation("DoctorApprovedNotes")
 
   @@index([patientId])
   @@index([createdById])
@@ -218,7 +220,6 @@ model ClinicalNote {
   @@index([createdAt])
   @@index([visitId])
   @@index([approvedById])
-  User User[] @relation("DoctorApprovedNotes")
 }
 
 /**
@@ -226,17 +227,17 @@ model ClinicalNote {
  * Represents a patient visit (can be linked to appointments later)
  */
 model Visit {
-  id        String   @id @default(cuid())
-  patientId String
-  patient   Patient  @relation(fields: [patientId], references: [id])
-  visitDate DateTime @default(now())
-  reason    String?
-  notes     String?
+  id           String         @id @default(cuid())
+  patientId    String
+  patient      Patient        @relation(fields: [patientId], references: [id])
+  visitDate    DateTime       @default(now())
+  reason       String?
+  notes        String?
+  ClinicalNote ClinicalNote[]
 
   @@index([patientId])
   @@index([visitDate])
   @@index([reason])
-  ClinicalNote ClinicalNote[]
 }
 
 /**
@@ -288,11 +289,15 @@ model User {
   EntSymptom              EntSymptom[]
   AestheticProcedure      AestheticProcedure[]
   AestheticConsent        AestheticConsent[]
-  IvRecipe                 IvRecipe[]
+  IvRecipe                IvRecipe[]
   IvReaction              IvReaction[]
   CreatedInvoices         Invoice[]            @relation("CreatedInvoices")
   Invoice                 Invoice[]
   PharmacySale            PharmacySale[]
+  createdTasks            Task[]               @relation("CreatedTasks")
+
+  assignedTasks Task[] @relation("AssignedTasks")
+  tasks         Task[]
 }
 
 // New Model for Refresh Tokens
@@ -332,14 +337,14 @@ model AuditLog {
 }
 
 model PatientHistory {
-  id        String   @id @default(cuid())
-  type      String // 'MEDICAL' or 'DENTAL'
-  notes     String
-  createdAt DateTime @default(now())
-  patientId String
+  id          String   @id @default(cuid())
+  type        String // 'MEDICAL' or 'DENTAL'
+  notes       String
+  createdAt   DateTime @default(now())
+  patientId   String
   createdById String?
-  createdBy User? @relation("CreatedPatientHistories", fields: [createdById], references: [id])
-  patient   Patient  @relation(fields: [patientId], references: [id])
+  createdBy   User?    @relation("CreatedPatientHistories", fields: [createdById], references: [id])
+  patient     Patient  @relation(fields: [patientId], references: [id])
 
   @@index([patientId])
   @@index([type])
@@ -358,26 +363,28 @@ model CommunicationLog {
   @@index([patientId])
   @@index([type])
   @@index([createdAt])
-} 
+}
 
 model Appointment {
-  id        String            @id @default(uuid())
-  patientId String
-  doctorId  String? // doctor id
-  date      DateTime
-  status    AppointmentStatus @default(PENDING)
-  createdAt DateTime          @default(now())
-  updatedAt DateTime          @updatedAt
-  reason    String?
-  service   String            @default("General Consultation")
-  timeslot  String
+  id            String            @id @default(uuid())
+  patientId     String
+  doctorId      String? // doctor id
+  date          DateTime
+  status        AppointmentStatus @default(PENDING)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  reason        String?
+  service       String            @default("General Consultation")
+  timeslot      String
   maritalStatus MaritalStatus?
-
 
   // relations
 
-  patient Patient @relation(fields: [patientId], references: [id])
-  doctor  User?   @relation(fields: [doctorId], references: [id])
+  patient          Patient            @relation(fields: [patientId], references: [id])
+  doctor           User?              @relation(fields: [doctorId], references: [id])
+  ClientAttendance ClientAttendance[]
+  DentalChart      DentalChart[]
+  DentalTreatment  DentalTreatment[]
 
   @@index([patientId])
   @@index([doctorId])
@@ -385,9 +392,7 @@ model Appointment {
   @@index([status])
   @@index([timeslot])
   @@index([createdAt])
-  ClientAttendance ClientAttendance[]
-  DentalChart      DentalChart[]
-  DentalTreatment  DentalTreatment[]
+  Task Task[]
 }
 
 model DentalChart {
@@ -467,6 +472,7 @@ model AestheticProcedure {
   // relations
   patient        Patient          @relation(fields: [patientId], references: [id])
   doctor         User             @relation(fields: [doctorId], references: [id])
+  AestheticAddon AestheticAddon[]
 
   @@index([patientId])
   @@index([doctorId])
@@ -474,7 +480,6 @@ model AestheticProcedure {
   @@index([scheduledAt])
   @@index([createdAt])
   @@index([deletedAt])
-  AestheticAddon AestheticAddon[]
 }
 
 model AestheticConsent {
@@ -620,11 +625,11 @@ model IvRecipe {
   updatedAt   DateTime    @updatedAt
   deletedAt   DateTime?
   createdBy   User?       @relation(fields: [createdById], references: [id])
+  sessions    IvSession[]
 
   @@index([createdById])
   @@index([createdAt])
   @@index([deletedAt])
-  sessions    IvSession[]
 }
 
 model IvSession {
@@ -641,6 +646,7 @@ model IvSession {
 
   patient   Patient      @relation(fields: [patientId], references: [id])
   recipe    IvRecipe     @relation(fields: [recipeId], references: [id])
+  reactions IvReaction[]
 
   @@index([patientId])
   @@index([recipeId])
@@ -649,7 +655,6 @@ model IvSession {
   @@index([date])
   @@index([createdAt])
   @@index([deletedAt])
-  reactions IvReaction[]
 }
 
 model IvReaction {
@@ -664,12 +669,12 @@ model IvReaction {
   deletedAt    DateTime?
 
   session    IvSession @relation(fields: [sessionId], references: [id])
+  recordedBy User?     @relation(fields: [recordedById], references: [id])
 
   @@index([sessionId])
   @@index([type])
   @@index([severity])
   @@index([recordedById])
-  recordedBy User?     @relation(fields: [recordedById], references: [id])
 }
 
 model Invoice {
@@ -694,47 +699,45 @@ model Invoice {
 
   createdBy   User   @relation(fields: [createdById], references: [id])
   createdById String
-  
 
   // RELATION (new)
   payments Payment[] // ← NEW: Link multiple payments (partial, retry, refund)
+  User     User[]    @relation("CreatedInvoices")
 
   @@index([patientId])
   @@index([status])
   @@index([issuedAt])
   @@index([reference])
   @@index([createdById])
-  User User[] @relation("CreatedInvoices")
 }
-
 
 // Pharmacy items & sales
 model PharmacyItem {
-  id          String   @id @default(cuid())
-  sku         String   @unique
+  id          String         @id @default(cuid())
+  sku         String         @unique
   name        String
   description String?
   unitPrice   Float
-  stock       Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  stock       Int            @default(0)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  sales       PharmacySale[]
 
   @@index([sku])
   @@index([name])
   @@index([stock])
   @@index([createdAt])
-  sales       PharmacySale[]
 }
 
 model PharmacySale {
-  id          String   @id @default(cuid())
+  id          String       @id @default(cuid())
   itemId      String
   item        PharmacyItem @relation(fields: [itemId], references: [id])
   quantity    Int
   totalAmount Float
-  createdById String?       // staff user who processed sale
-  createdBy   User?    @relation(fields: [createdById], references: [id])
-  createdAt   DateTime @default(now())
+  createdById String? // staff user who processed sale
+  createdBy   User?        @relation(fields: [createdById], references: [id])
+  createdAt   DateTime     @default(now())
 
   @@index([itemId])
   @@index([createdById])
@@ -743,19 +746,19 @@ model PharmacySale {
 
 // Billing & payments
 
-
 model Payment {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   invoiceId      String
-  invoice        Invoice  @relation(fields: [invoiceId], references: [id])
+  invoice        Invoice   @relation(fields: [invoiceId], references: [id])
   amount         Float
   note           String?
-  method         String   // CASH | TRANSFER | CARD | PAYSTACK
-  gateway        String?  // gateway name / meta
-  transactionRef String?  @unique
-  status         String   @default("SUCCESS") // SUCCESS, FAILED, PENDING
-  paidAt         DateTime @default(now())
-  createdById    String?  // staff user who processed
+  method         String // CASH | TRANSFER | CARD | PAYSTACK
+  gateway        String? // gateway name / meta
+  transactionRef String?   @unique
+  status         String    @default("SUCCESS") // SUCCESS, FAILED, PENDING
+  paidAt         DateTime  @default(now())
+  createdById    String? // staff user who processed
+  Patient        Patient[]
 
   @@index([invoiceId])
   @@index([method])
@@ -763,26 +766,31 @@ model Payment {
   @@index([transactionRef])
   @@index([createdById])
   @@index([paidAt])
-  Patient Patient[]
 }
 
 // tasks / automation
 model Task {
-  id          String   @id @default(cuid())
-  title       String
-  description String?
-  dueAt       DateTime?
-  completed   Boolean  @default(false)
-  createdById String?
-  assignedTo  String?  // user id
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                   String    @id @default(uuid())
+  title                String
+  description          String?
+  status               String    @default("PENDING") // PENDING | COMPLETED | CANCELLED
+  priority             String? // LOW | MEDIUM | HIGH
+  dueDate              DateTime?
+  assignedToId         String?
+  assignedToUser       User?     @relation("AssignedTasks", fields: [assignedToId], references: [id])
+  createdById          String
+  patient              Patient?  @relation(fields: [relatedPatientId], references: [id])
+  relatedPatientId     String?   @map("related_patient_id")
+  meta                 Json? // store arbitrary metadata
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  createdBy            User      @relation("CreatedTasks", fields: [createdById], references: [id])
 
-  @@index([title])
-  @@index([completed])
-  @@index([dueAt])
-  @@index([createdById])
-  @@index([assignedTo])
+  // relations
+  appointment          Appointment? @relation(fields: [relatedAppointmentId], references: [id])
+  relatedAppointmentId String?      @map("related_appointment_id")
+  // relations
+  User User[]
 }
 
 model NoteSuggestion {
@@ -801,13 +809,13 @@ model NoteSuggestion {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  User      User[]   @relation("NurseCreatedNotes")
 
   @@index([patientId])
   @@index([createdById])
   @@index([status])
   @@index([approvedById])
   @@index([createdAt])
-  User User[] @relation("NurseCreatedNotes")
 }
 
 model AuditTrail {
@@ -837,16 +845,16 @@ model Notification {
   read        Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  recipient   Patient  @relation(fields: [recipientId], references: [id])
+
+  // This relation to User is not needed for notifications to patients.
+  // User   User?   @relation(fields: [userId], references: [id])
+  // userId String?
 
   @@index([recipientId])
   @@index([type])
   @@index([read])
   @@index([createdAt])
-  recipient Patient @relation(fields: [recipientId], references: [id])
-
-  // This relation to User is not needed for notifications to patients.
-  // User   User?   @relation(fields: [userId], references: [id])
-  // userId String?
 }
 
 enum NotificationType {

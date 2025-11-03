@@ -1,11 +1,11 @@
 // src/modules/tasks/tasks.service.ts
 
-import { Injectable, NotFoundException, ForbiddenException, InternalServerErrorException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, InternalServerErrorException, Logger, } from '@nestjs/common';
 import { PrismaService } from 'prisma/prisma.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { CreateTaskDto, UpdateTaskDto, QueryTasksDto } from './tasks.dto';
 import { Role } from '@prisma/client'; // Assuming Role enum is available
 import { AuditTrailService } from 'src/audit-trail/auditTrail.service';
+import { CreateTaskDto, QueryTasksDto, UpdateTaskDto } from './tasks.dto';
 
 /**
  * TasksService - handles CRUD, audit logging, and security checks.
@@ -24,7 +24,7 @@ export class TasksService {
   // --------------------------------------------------
   // 1. CREATE TASK
   // --------------------------------------------------
-  async create(dto: CreateTaskDto, user: any) { // ⬅️ Changed to take full user object
+  async create(dto: CreateTaskDto, user: any) { // ⬅️ Changed to take full user
     try {
       // ⚡ REFACTOR: Check existence of assigned user and related patient/appointment
       await this.assertRelatedEntitiesExist(dto);
@@ -33,15 +33,16 @@ export class TasksService {
 
       const task = await this.prisma.task.create({
         data: {
-          title: dto.title,
-          description: dto.description,
-          priority: dto.priority,
-          dueDate: dueDate ?? undefined,
-          assignedToId: dto.assignedToId ?? undefined,
-          relatedPatientId: dto.relatedPatientId ?? undefined,
-          relatedAppointmentId: dto.relatedAppointmentId ?? undefined,
-          createdById: user.id,
+          title: dto.title, // Required
+          description: dto.description, // Optional
+          priority: dto.priority as any, // Optional, cast to any for enum
+          dueDate: dueDate, // Optional, Date object or null
+          assignedToUser: dto.assignedToId ? { connect: { id: dto.assignedToId } } : undefined,
+          patient: dto.relatedPatientId ? { connect: { id: dto.relatedPatientId } } : undefined, // Optional relation
+          appointment: dto.relatedAppointmentId ? { connect: { id: dto.relatedAppointmentId } } : undefined, // Optional relation
+          createdBy: { connect: { id: user.id } }, // Required relation
         },
+        
       });
 
       // 🛡️ AUDIT LOG: Task Creation
@@ -63,66 +64,63 @@ export class TasksService {
     }
   }
 
-  // --------------------------------------------------
-  // 2. LIST TASKS
-  // --------------------------------------------------
-  async findAll(query: QueryTasksDto, user: any) { // ⬅️ NEW: Added user for security filtering
-    try {
-      const page = Math.max(query.page || 1, 1);
-      const limit = Math.min(Math.max(query.limit || 20, 1), 200);
-      const skip = (page - 1) * limit;
+  async findAll(query: QueryTasksDto, user: any) {
+    try {
+      // Pagination setup remains the same
+      const page = Math.max(query.page || 1, 1);
+      const limit = Math.min(Math.max(query.limit || 20, 1), 200);
+      const skip = (page - 1) * limit;
 
-      const where: any = {};
-      
-      // 🛡️ SECURITY: Apply role-based visibility filtering
-      if (user.role === Role.PATIENT) {
-          // Patient can only see tasks related to them
-          where.relatedPatientId = user.patientId; // Assuming user.patientId holds the patient link
-      } else if (user.role === Role.DOCTOR || user.role === Role.NURSE) {
-          // Clinical staff see tasks assigned to them, unless explicitly filtering otherwise
-          if (!query.assignedToId) {
-             where.OR = [
-                 { assignedToId: user.id },
-                 // Optionally: Tasks they created, if not assigned to anyone else
-                 { createdById: user.id, assignedToId: null } 
-             ];
-          }
-      }
+      const where: any = {};
+      
+      // 🛡️ SECURITY: Apply role-based visibility filtering (Unchanged)
+      if (user.role === Role.PATIENT) {
+          where.relatedPatientId = user.patientId;
+      } else if (user.role === Role.DOCTOR || user.role === Role.NURSE) {
+          if (!query.assignedToId) {
+             where.OR = [
+                 { assignedToId: user.id },
+                 { createdById: user.id, assignedToId: null } 
+             ];
+          }
+      }
 
-      // Apply standard filters (can override default role filters if user is ADMIN)
-      if (query.status) where.status = query.status;
-      if (query.assignedToId) where.assignedToId = query.assignedToId;
-      if (query.q) {
-        where.OR = [
-          { title: { contains: query.q, mode: 'insensitive' } },
-          { description: { contains: query.q, mode: 'insensitive' } },
-        ];
-      }
+      // Apply standard filters (Unchanged)
+      if (query.status) where.status = query.status;
+      if (query.assignedToId) where.assignedToId = query.assignedToId;
+      if (query.q) {
+        where.OR = [
+          { title: { contains: query.q, mode: 'insensitive' } },
+          { description: { contains: query.q, mode: 'insensitive' } },
+        ];
+      }
 
-      const [total, data] = await this.prisma.$transaction([
-        this.prisma.task.count({ where }),
-        this.prisma.task.findMany({
-          where,
-          skip,
-          take: limit,
-          orderBy: { dueDate: 'asc', createdAt: 'desc' },
-          include: {
+      // ⚡ REFACTOR: Using Promise.all() for concurrent read queries
+      const [total, data] = await Promise.all([ // ⬅️ Changed from this.prisma.$transaction
+        this.prisma.task.count({ where }), // Query 1: Get the total number of tasks
+        this.prisma.task.findMany({ // Query 2: Get the paged data
+          where,
+          skip,
+          take: limit,
+          orderBy: { dueDate: 'asc', createdAt: 'desc' },
+          include: {
             createdBy: { select: { id: true, email: true, firstName: true, lastName: true } },
-            assignedTo: { select: { id: true, email: true, firstName: true, lastName: true } },
-            relatedPatient: { select: { id: true, firstName: true, lastName: true, patientId: true, phone: true, email: true } },
-          },
-        }),
-      ]);
+            assignedToUser: { select: { id: true, email: true, firstName: true, lastName: true } },
+            patient: { select: { id: true, firstName: true, lastName: true, patientId: true, phone: true, email: true } },
+            appointment: { select: { id: true, date: true, service: true } }
+            }
+        }),
+      ]);
 
-      return {
-        meta: { total, page, limit, pages: Math.ceil(total / limit) },
-        data,
-      };
-    } catch (err: any) {
-      this.logger.error('Failed to list tasks', err.stack || err);
-      throw new InternalServerErrorException('Could not retrieve tasks');
-    }
-  }
+      return {
+        meta: { total, page, limit, pages: Math.ceil(total / limit) },
+        data,
+      };
+    } catch (err: any) {
+      this.logger.error('Failed to list tasks', err.stack || err);
+      throw new InternalServerErrorException('Could not retrieve tasks');
+    }
+  }
 
   // --------------------------------------------------
   // 3. GET SINGLE TASK
@@ -133,8 +131,9 @@ export class TasksService {
         where: { id },
         include: {
           createdBy: { select: { id: true, email: true, firstName: true, lastName: true } },
-          assignedTo: { select: { id: true, email: true, firstName: true, lastName: true } },
-          relatedPatient: { select: { id: true, firstName: true, lastName: true } },
+          assignedToUser: { select: { id: true, email: true, firstName: true, lastName: true } },
+          patient: { select: { id: true, firstName: true, lastName: true, patientId: true, phone: true, email: true } },
+          appointment: { select: { id: true, date: true, service: true } },
         },
       });
       if (!task) throw new NotFoundException('Task not found');
@@ -155,9 +154,6 @@ export class TasksService {
     }
   }
 
-  // --------------------------------------------------
-  // 4. UPDATE TASK (Core logic for both update and complete)
-  // --------------------------------------------------
   async update(id: string, dto: UpdateTaskDto, user: any) { // ⬅️ Changed actorId to user object
     try {
       const existing = await this.prisma.task.findUnique({ where: { id } });
@@ -180,7 +176,7 @@ export class TasksService {
       
       // Build dataToUpdate dynamically
       const dataToUpdate: any = {};
-      Object.keys(dto).forEach(key => {
+      (Object.keys(dto) as Array<keyof UpdateTaskDto>).forEach(key => {
           if (dto[key] !== undefined) {
               dataToUpdate[key] = key === 'dueDate' && dto[key] !== null 
                   ? new Date(dto[key]) 
@@ -188,12 +184,13 @@ export class TasksService {
           }
       });
       
+      
       const updated = await this.prisma.task.update({ where: { id }, data: dataToUpdate });
 
       // 🛡️ AUDIT LOG: Task Update
-      const changes = Object.keys(dto).reduce((acc, key) => {
-        if (dto[key] !== oldData[key]) {
-          acc[key] = { oldValue: oldData[key], newValue: dto[key] };
+      const changes = (Object.keys(dto) as Array<keyof UpdateTaskDto>).reduce((acc, key) => {
+        if (dto[key] !== undefined && dto[key] !== (oldData as any)[key]) {
+          (acc as any)[key] = { oldValue: (oldData as any)[key], newValue: dto[key] };
         }
         return acc;
       }, {});

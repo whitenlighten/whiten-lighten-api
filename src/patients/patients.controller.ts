@@ -87,7 +87,7 @@ export class PatientsController {
   @Get(':id')
   @Roles(Role.SUPERADMIN, Role.ADMIN, Role.DOCTOR, Role.FRONTDESK, Role.PATIENT)
   @ApiOperation({ summary: 'Get patient by ID' })
-  async getPatient(@Param('id', ParseUUIDPipe) id: string, @GetUser() user: any) {
+  async getPatient(@Param('id') id: string, @GetUser() user: any) {
     return this.patientsService.findOne(id, user);
   }
 
@@ -148,7 +148,7 @@ export class PatientsController {
   @Roles(Role.SUPERADMIN, Role.ADMIN, Role.DOCTOR, Role.FRONTDESK, Role.PATIENT)
   @ApiOperation({ summary: "Get patient's appointment history" })
   async getPatientAppointments(
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('id') id: string,
     @GetUser() user: any,
     @Query() query: QueryPatientsDto,
   ) {
