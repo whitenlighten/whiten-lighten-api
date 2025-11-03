@@ -36,7 +36,7 @@ export class TasksService {
           title: dto.title, // Required
           description: dto.description, // Optional
           priority: dto.priority as any, // Optional, cast to any for enum
-          dueDate: dueDate, // Optional, Date object or null
+          dueDate, // Optional, Date object or null
           assignedToUser: dto.assignedToId ? { connect: { id: dto.assignedToId } } : undefined,
           patient: dto.relatedPatientId ? { connect: { id: dto.relatedPatientId } } : undefined, // Optional relation
           appointment: dto.relatedAppointmentId ? { connect: { id: dto.relatedAppointmentId } } : undefined, // Optional relation
@@ -45,14 +45,15 @@ export class TasksService {
         
       });
 
-      // 🛡️ AUDIT LOG: Task Creation
+      
       await this.auditTrailService.log(
         'TASK_CREATED',
-        'Task',
-        task.id,
-        user,
-        { title: task.title, assignedToId: task.assignedToId, patientId: task.relatedPatientId }
-      );
+         'Task', 
+         task.id, 
+         user,
+         { title: task.title, assignedToId: task.assignedToId, patientId: task.relatedPatientId }
+        );
+
 
       this.eventEmitter.emit('task.created', { taskId: task.id, createdById: user.id });
 
@@ -96,14 +97,14 @@ export class TasksService {
       }
 
       // ⚡ REFACTOR: Using Promise.all() for concurrent read queries
-      const [total, data] = await Promise.all([ // ⬅️ Changed from this.prisma.$transaction
+      const [total, data] = await this.prisma.$transaction([ // ⬅️ Changed from Promise.all to $transaction for consistency
         this.prisma.task.count({ where }), // Query 1: Get the total number of tasks
         this.prisma.task.findMany({ // Query 2: Get the paged data
           where,
           skip,
           take: limit,
-          orderBy: { dueDate: 'asc', createdAt: 'desc' },
-          include: {
+          orderBy: { createdAt: 'desc' }, // Added orderBy for consistent results
+          include: {
             createdBy: { select: { id: true, email: true, firstName: true, lastName: true } },
             assignedToUser: { select: { id: true, email: true, firstName: true, lastName: true } },
             patient: { select: { id: true, firstName: true, lastName: true, patientId: true, phone: true, email: true } },
@@ -140,8 +141,8 @@ export class TasksService {
 
       // 🛡️ SECURITY: Enforce view restrictions
       const isAdminOrCreator = [Role.ADMIN, Role.SUPERADMIN].includes(user.role) || task.createdById === user.id;
-      const isAssigned = task.assignedToId === user.id;
-      const isRelatedPatient = user.role === Role.PATIENT && task.relatedPatientId === user.patientId;
+      const isAssigned = task.assignedToId === user.id; // Corrected from assignedTo
+      const isRelatedPatient = user.role === Role.PATIENT && task.relatedPatientId === user.patientId; // Corrected from relatedPatient
 
       if (!isAdminOrCreator && !isAssigned && !isRelatedPatient) {
           throw new ForbiddenException('You are not authorized to view this task.');
@@ -161,7 +162,7 @@ export class TasksService {
 
       // 🛡️ SECURITY: Enforce update restrictions
       const isAuthorized = [Role.ADMIN, Role.SUPERADMIN].includes(user.role) ||
-                           existing.assignedToId === user.id ||
+                           existing.assignedToId === user.id || // Corrected from assignedTo
                            existing.createdById === user.id;
       if (!isAuthorized) {
           throw new ForbiddenException('You are not authorized to update this task.');
