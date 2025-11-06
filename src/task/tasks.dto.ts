@@ -33,6 +33,10 @@ export class CreateTaskDto {
   @ApiPropertyOptional({ example: 'appointment-id', description: 'Optional appointment id' })
   @IsOptional() @IsString()
   relatedAppointmentId?: string;
+
+  @ApiPropertyOptional({ description: 'is Recusive Call', example: false })
+  @IsOptional()
+  isRecursiveCall?: boolean;
 }
 
 /** Update parts of a task */

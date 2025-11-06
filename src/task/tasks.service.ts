@@ -42,7 +42,7 @@ export class TasksService {
           appointment: dto.relatedAppointmentId ? { connect: { id: dto.relatedAppointmentId } } : undefined, // Optional relation
           createdBy: { connect: { id: user.id } }, // Required relation
         },
-        
+
       });
 
       
@@ -55,7 +55,7 @@ export class TasksService {
         );
 
 
-      this.eventEmitter.emit('task.created', { taskId: task.id, createdById: user.id });
+      this.eventEmitter.emit('task.created', { taskId: task.id, createdById: user.id, isRecursiveCall: dto.isRecursiveCall });
 
       return task;
     } catch (err: any) {
