@@ -270,7 +270,18 @@ export class PatientsService {
       skip,
       take: limit,
       orderBy: { createdAt: 'desc' },
-      select,
+      select: {
+        ...select,
+        registeredBy: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            role: true,
+          },
+        },
+      },
     });
 
     return {
