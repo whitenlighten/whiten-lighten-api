@@ -17,12 +17,24 @@ import { PatientsService } from './patients.service';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Role } from '@prisma/client';
 import { Roles } from 'src/auth/decorator/roles.decorator';
-import { AddPatientHistoryDto, CreatePatientDto, LogCommunicationDto, QueryPatientsDto, SelfRegisterPatientDto, UpdatePatientDto } from './patients.dto';
+import {
+  AddPatientHistoryDto,
+  CreatePatientDto,
+  LogCommunicationDto,
+  QueryPatientsDto,
+  SelfRegisterPatientDto,
+  UpdatePatientDto,
+} from './patients.dto';
 import { GetUser, GetUser as GetUserId } from 'src/common/decorator/get-user.decorator';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { Public } from 'src/common/decorator/public.decorator';
 import { QueryAppointmentsDto } from 'src/appointments/appointment.dto';
 
+interface IRequestUser {
+  userId: string;
+  email: string;
+  role: string;
+}
 @ApiTags('patients')
 @ApiBearerAuth('JWT-auth')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -37,8 +49,9 @@ export class PatientsController {
   @Roles(Role.SUPERADMIN, Role.ADMIN, Role.FRONTDESK, Role.DOCTOR, Role.NURSE)
   @ApiOperation({ summary: 'Create patient (staff only)' })
   @ApiResponse({ status: 201, description: 'Patient created successfully.' })
-  async createPatient(@Body() dto: CreatePatientDto, @GetUser() user: { id: string }   ) {
-    return this.patientsService.create(dto);
+  async createPatient(@Body() dto: CreatePatientDto, @GetUser() user: IRequestUser) {
+    // console.log({ user });
+    return this.patientsService.create(dto, user.userId);
   }
 
   // =====================
@@ -132,14 +145,12 @@ export class PatientsController {
     return this.patientsService.unarchive(id, user);
   }
 
-  
   @Get('/archived/all') // Example route
   @Roles(Role.SUPERADMIN, Role.ADMIN, Role.FRONTDESK)
   @ApiOperation({ summary: 'Get all archived patients' })
   async getAllArchived(@GetUser() user: any, @Query() query: QueryPatientsDto) {
     return this.patientsService.getallarchived(user, query);
   }
-
 
   // =====================
   // 9. Patient’s appointment history
@@ -161,61 +172,51 @@ export class PatientsController {
   @Get(':patientId/history')
   @Roles(Role.SUPERADMIN, Role.ADMIN, Role.DOCTOR, Role.FRONTDESK, Role.NURSE)
   @ApiOperation({ summary: "Get a patient's history" })
-  async getPatientHistory(
-    @Query() query: QueryPatientsDto,
-    @GetUser() user: any,
-  ) {
-    return this.patientsService.getHistory( query, user);
+  async getPatientHistory(@Query() query: QueryPatientsDto, @GetUser() user: any) {
+    return this.patientsService.getHistory(query, user);
   }
 
   @Post(':patientId/history/dental')
   @Roles(Role.SUPERADMIN, Role.ADMIN, Role.DOCTOR, Role.NURSE, Role.FRONTDESK)
   @ApiOperation({ summary: 'Add to a Dental Record' })
-  async addDentalHistory( 
+  async addDentalHistory(
     @Param('patientId') patientId: string,
     @Body() dto: AddPatientHistoryDto,
     @GetUserId('id') createdById: string,
   ) {
     return this.patientsService.addHistory(
-    patientId, 
-    'DENTAL', // 👈 Hardcoded type
-    dto.notes, // 👈 Pass notes directly
-    createdById
-  );}
+      patientId,
+      'DENTAL', // 👈 Hardcoded type
+      dto.notes, // 👈 Pass notes directly
+      createdById,
+    );
+  }
 
   @Post(':patientId/history/medical')
   @Roles(Role.SUPERADMIN, Role.ADMIN, Role.DOCTOR, Role.NURSE, Role.FRONTDESK)
   @ApiOperation({ summary: 'Add to a patient history' })
-  async addPMedicalHistory( 
+  async addPMedicalHistory(
     @Param('patientId') patientId: string,
     @Body() dto: AddPatientHistoryDto,
     @GetUserId('id') createdById: string,
   ) {
-   return this.patientsService.addHistory(
-    patientId, 
-    'MEDICAL', // 👈 Hardcoded type
-    dto.notes, // 👈 Pass notes directly
-    createdById
-  );
-}
+    return this.patientsService.addHistory(
+      patientId,
+      'MEDICAL', // 👈 Hardcoded type
+      dto.notes, // 👈 Pass notes directly
+      createdById,
+    );
+  }
 
-@Post(':id/communication')
-@ApiOperation({ summary: 'Add communication log' })
-async logCommunication(
-  @Param('id') id: string,
-  @Body() dto: LogCommunicationDto,
-) {
-  return this.patientsService.logCommunication(id, dto.type, dto.message);
-}
+  @Post(':id/communication')
+  @ApiOperation({ summary: 'Add communication log' })
+  async logCommunication(@Param('id') id: string, @Body() dto: LogCommunicationDto) {
+    return this.patientsService.logCommunication(id, dto.type, dto.message);
+  }
 
-@Get(':id/communication')
-@Roles(Role.SUPERADMIN, Role.ADMIN, Role.DOCTOR, Role.NURSE, Role.FRONTDESK)
-async getCommunications(
-  @Query() query: any,
-  @GetUser() user: any,
-  @Param('id') id: string) {
-  return this.patientsService.getCommunications(id, query, user);
-}
-
-
+  @Get(':id/communication')
+  @Roles(Role.SUPERADMIN, Role.ADMIN, Role.DOCTOR, Role.NURSE, Role.FRONTDESK)
+  async getCommunications(@Query() query: any, @GetUser() user: any, @Param('id') id: string) {
+    return this.patientsService.getCommunications(id, query, user);
+  }
 }
