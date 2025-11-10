@@ -8,17 +8,23 @@ import {
 } from '@nestjs/common';
 import { Role, PatientStatus, RegistrationType, Prisma } from '@prisma/client';
 import { PrismaService } from 'prisma/prisma.service';
-import { AddPatientHistoryDto, CreatePatientDto, QueryPatientsDto, SelfRegisterPatientDto, UpdatePatientDto } from './patients.dto';
+import {
+  AddPatientHistoryDto,
+  CreatePatientDto,
+  QueryPatientsDto,
+  SelfRegisterPatientDto,
+  UpdatePatientDto,
+} from './patients.dto';
 import { getPatientId } from 'src/utils/patient-id.util';
 import { NotificationsService } from 'src/notification/notifications.service';
-
+import { error } from 'console';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 
 @Injectable()
 export class PatientsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
-   
   ) {}
 
   /**
@@ -26,8 +32,7 @@ export class PatientsService {
    * CREATE patient (staff-created)
    * =============================
    */
-  async create(createDto: CreatePatientDto,) {
-
+  async create(createDto: CreatePatientDto, registeredBy: string) {
     if (!createDto.dateOfBirth) {
       throw new BadRequestException('Date of birth is required');
     }
@@ -42,41 +47,70 @@ export class PatientsService {
       throw new BadRequestException('Email is required');
     }
 
-    const patient = await this.prisma.patient.create({
-      data: {
-        ...createDto,
-        status: PatientStatus.ACTIVE,
-        dateOfBirth: new Date(createDto.dateOfBirth),
-        gender: createDto.gender,
-        age: createDto.age ? parseInt(createDto.age, 10) : undefined,
-        phone: createDto.phone,
-        email: createDto.email,
-        address: createDto.address,
-        patientId: await getPatientId(),
-      },
-    });
+    try {
+      const patient = await this.prisma.patient.create({
+        data: {
+          ...createDto,
+          status: PatientStatus.ACTIVE,
+          dateOfBirth: new Date(createDto.dateOfBirth),
+          gender: createDto.gender,
+          age: createDto.age ? parseInt(createDto.age, 10) : undefined,
+          phone: createDto.phone,
+          email: createDto.email,
+          address: createDto.address,
+          patientId: await getPatientId(),
+          registeredById: registeredBy,
+        },
+      });
 
-    // 👇 Notify the patient that their profile was created
-    await this.notificationsService.create({
-      title: 'Welcome to the Clinic!',
-      message: `Dear ${patient.firstName}, your patient profile has been successfully created.`,
-      type: 'PATIENT',
-      recipientId: patient.id,
-    });
+      // 👇 Notify the patient that their profile was created
+      await this.notificationsService.create({
+        title: 'Welcome to the Clinic!',
+        message: `Dear ${patient.firstName}, your patient profile has been successfully created.`,
+        type: 'PATIENT',
+        recipientId: patient.id,
+      });
 
-    // Return only the input data plus key generated fields
-    const { email, firstName, lastName, phone, gender, dateOfBirth, address, age, maritalStatus, bloodGroup } = createDto;
-    return {
-      id: patient.id,
-      patientId: patient.patientId,
-      status: patient.status,
-      email,
-      firstName,
-      lastName,
-      phone, gender, dateOfBirth, address, age,
-      maritalStatus,
-      bloodGroup
-    };
+      // Return only the input data plus key generated fields
+      const {
+        email,
+        firstName,
+        lastName,
+        phone,
+        gender,
+        dateOfBirth,
+        address,
+        age,
+        maritalStatus,
+        bloodGroup,
+      } = createDto;
+      return {
+        id: patient.id,
+        patientId: patient.patientId,
+        status: patient.status,
+        email,
+        firstName,
+        lastName,
+        phone,
+        gender,
+        dateOfBirth,
+        address,
+        age,
+        maritalStatus,
+        bloodGroup,
+      };
+    } catch (e) {
+      if (e instanceof PrismaClientKnownRequestError) {
+        if (e.code === 'P2002') {
+          const targetFields = e.meta?.target || [];
+          const fields = Array.isArray(targetFields) ? targetFields.join(', ') : targetFields;
+
+          throw new ConflictException(`A record with the same ${fields} already exists.`);
+        }
+      } else {
+        throw error(e);
+      }
+    }
   }
 
   /**
@@ -84,95 +118,94 @@ export class PatientsService {
    * SELF-REGISTER patient
    * =============================
    */
- async selfRegister(createDto: SelfRegisterPatientDto) {
-  if (!createDto.email) {
-    throw new BadRequestException('Email is required');
-  }
-
-  // Check for an existing patient with the same email or phone number
-  const existingPatient = await this.prisma.patient.findFirst({
-    where: {
-      OR: [
-        { email: createDto.email.toLowerCase() },
-        { phone: createDto.phone }
-      ]
+  async selfRegister(createDto: SelfRegisterPatientDto) {
+    if (!createDto.email) {
+      throw new BadRequestException('Email is required');
     }
-  });
 
-  if (existingPatient) {
-    throw new ConflictException('A patient with this email or phone number already exists.');
-  }
-   // Check for an existing user with the same email or phone number
-  const existingUser = await this.prisma.user.findFirst({
-    where: {
-      OR: [
-        { email: createDto.email.toLowerCase() },
-        { phone: createDto.phone }
-      ]
-    },
-  }); 
-
-  if (existingUser) {
-    if (existingUser.email === createDto.email.toLowerCase()) {
-      throw new BadRequestException('A user with this email already exists.');
-    }
-    if (existingUser.phone === createDto.phone) {
-      throw new BadRequestException('A user with this phone number already exists.');
-    }
-    // If the user exists but is not a patient, this is an unexpected state, throw an error or handle
-    throw new BadRequestException('A user with this email already exists but is not a patient.');
-  } 
-
-  // Scenario 2: User does not exist, proceed with creation
-  try {
-    const user = await this.prisma.user.create({
-      data: {
-        email: createDto.email.toLowerCase(),
-        password: '',
-        role: 'PATIENT',
-        phone: createDto.phone,
-        firstName: createDto.firstName,
-        lastName: createDto.lastName,
+    // Check for an existing patient with the same email or phone number
+    const existingPatient = await this.prisma.patient.findFirst({
+      where: {
+        OR: [{ email: createDto.email.toLowerCase() }, { phone: createDto.phone }],
       },
     });
 
-    const patient = await this.prisma.patient.create({
-      data: {
-        firstName: createDto.firstName,
-        lastName: createDto.lastName,
-        email: createDto.email.toLowerCase(),
-        phone: createDto.phone,
-        gender: createDto.gender,
-        age: createDto.age ? parseInt(createDto.age, 10) : undefined,
-        status: PatientStatus.PENDING,
-        patientId: await getPatientId(),
-        registrationType: RegistrationType.SELF,
-        userId: user.id,
+    if (existingPatient) {
+      throw new ConflictException('A patient with this email or phone number already exists.');
+    }
+    // Check for an existing user with the same email or phone number
+    const existingUser = await this.prisma.user.findFirst({
+      where: {
+        OR: [{ email: createDto.email.toLowerCase() }, { phone: createDto.phone }],
       },
     });
 
-     await this.notificationsService.create({
-      title: 'Registration Submitted',
-      message: `Dear ${patient.firstName}, your registration has been received and is pending approval.`,
-      type: 'PATIENT',
-      recipientId: patient.id,
-    });
+    if (existingUser) {
+      if (existingUser.email === createDto.email.toLowerCase()) {
+        throw new BadRequestException('A user with this email already exists.');
+      }
+      if (existingUser.phone === createDto.phone) {
+        throw new BadRequestException('A user with this phone number already exists.');
+      }
+      // If the user exists but is not a patient, this is an unexpected state, throw an error or handle
+      throw new BadRequestException('A user with this email already exists but is not a patient.');
+    }
 
-    // Return only the input data plus key generated fields
-    const { email, firstName, lastName, phone, gender, age } = createDto;
-    return {
-      id: patient.id,
-      patientId: patient.patientId,
-      status: patient.status,
-      email,
-      firstName,
-      lastName, phone, gender, age
-    };
-  } catch (error) {
-    console.error('Error during self-registration:', error);
-    throw new InternalServerErrorException('Failed to self-register patient. Please try again later.');
+    // Scenario 2: User does not exist, proceed with creation
+    try {
+      const user = await this.prisma.user.create({
+        data: {
+          email: createDto.email.toLowerCase(),
+          password: '',
+          role: 'PATIENT',
+          phone: createDto.phone,
+          firstName: createDto.firstName,
+          lastName: createDto.lastName,
+        },
+      });
+
+      const patient = await this.prisma.patient.create({
+        data: {
+          firstName: createDto.firstName,
+          lastName: createDto.lastName,
+          email: createDto.email.toLowerCase(),
+          phone: createDto.phone,
+          gender: createDto.gender,
+          age: createDto.age ? parseInt(createDto.age, 10) : undefined,
+          status: PatientStatus.PENDING,
+          patientId: await getPatientId(),
+          registrationType: RegistrationType.SELF,
+          userId: user.id,
+        },
+      });
+
+      await this.notificationsService.create({
+        title: 'Registration Submitted',
+        message: `Dear ${patient.firstName}, your registration has been received and is pending approval.`,
+        type: 'PATIENT',
+        recipientId: patient.id,
+      });
+
+      // Return only the input data plus key generated fields
+      const { email, firstName, lastName, phone, gender, age } = createDto;
+      return {
+        id: patient.id,
+        patientId: patient.patientId,
+        status: patient.status,
+        email,
+        firstName,
+        lastName,
+        phone,
+        gender,
+        age,
+      };
+    } catch (error) {
+      console.error('Error during self-registration:', error);
+      throw new InternalServerErrorException(
+        'Failed to self-register patient. Please try again later.',
+      );
+    }
   }
-}
 
   /**
    * =============================
@@ -190,13 +223,12 @@ export class PatientsService {
       throw new BadRequestException('Only pending patients can be approved');
     }
 
-    
-  // If email sending is successful or handled, proceed to update the patient status
-  return this.prisma.patient.update({
-    where: { id: patient.id },
-    data: { status: PatientStatus.ACTIVE, approvedById: user.id, approvedAt: new Date() },
-  });
-}
+    // If email sending is successful or handled, proceed to update the patient status
+    return this.prisma.patient.update({
+      where: { id: patient.id },
+      data: { status: PatientStatus.ACTIVE, approvedById: user.id, approvedAt: new Date() },
+    });
+  }
 
   /**
    * =============================
@@ -256,6 +288,10 @@ export class PatientsService {
     const patient = await this.prisma.patient.findUnique({
       where: { id },
       include: {
+        // include a small registeredBy object so callers can see who registered this patient
+        registeredBy: {
+          select: { id: true, firstName: true, lastName: true, email: true, role: true },
+        },
         // eventually clinical notes can be included conditionally
         clinicalNotes: false,
       },
@@ -278,12 +314,16 @@ export class PatientsService {
     const patient = await this.prisma.patient.findUnique({
       where: { patientId },
       include: {
+        registeredBy: {
+          select: { id: true, firstName: true, lastName: true, email: true, role: true },
+        },
         clinicalNotes: false,
       },
     });
     if (!patient) throw new NotFoundException('Patient not found');
 
-    if (user.role === Role.PATIENT && user.id !== patient.userId) { // This was already correct, but good to confirm
+    if (user.role === Role.PATIENT && user.id !== patient.userId) {
+      // This was already correct, but good to confirm
       throw new ForbiddenException('You can only view your own profile');
     }
 
@@ -299,7 +339,6 @@ export class PatientsService {
     console.log(`[update] Starting update for patient ID: ${id}`);
     console.log(`[update] Received DTO:`, updateDto);
     console.log(`[update] User performing update:`, user);
-
 
     const patient = await this.prisma.patient.findUnique({ where: { id } });
     if (!patient) throw new NotFoundException('Patient not found');
@@ -319,7 +358,9 @@ export class PatientsService {
       });
 
       if (existingPatientWithEmail && existingPatientWithEmail.id !== id) {
-        console.error(`[update] Email conflict: ${updateDto.email} is already in use by patient ID ${existingPatientWithEmail.id}`);
+        console.error(
+          `[update] Email conflict: ${updateDto.email} is already in use by patient ID ${existingPatientWithEmail.id}`,
+        );
         throw new ConflictException('This email address is already in use by another patient.');
       }
     }
@@ -331,7 +372,9 @@ export class PatientsService {
       });
 
       if (existingPatientWithPhone && existingPatientWithPhone.id !== id) {
-        console.error(`[update] Phone conflict: ${updateDto.phone} is already in use by patient ID ${existingPatientWithPhone.id}`);
+        console.error(
+          `[update] Phone conflict: ${updateDto.phone} is already in use by patient ID ${existingPatientWithPhone.id}`,
+        );
         throw new ConflictException('This phone number is already in use by another patient.');
       }
     }
@@ -392,18 +435,17 @@ export class PatientsService {
     const patient = await this.prisma.patient.findUnique({ where: { id } });
     if (!patient) throw new NotFoundException('Patient not found');
 
-     const archive = await this.prisma.patient.update({
+    const archive = await this.prisma.patient.update({
       where: { id },
       data: { status: PatientStatus.ARCHIVED },
     });
 
-     await this.notificationsService.create({
+    await this.notificationsService.create({
       title: 'Profile Archived',
       message: `Your profile has been archived by an administrator.`,
       type: 'PATIENT',
       recipientId: patient.id,
     });
-
 
     return archive;
   }
@@ -435,7 +477,8 @@ export class PatientsService {
     return restoredPatient;
   }
 
-   async getallarchived(user: any, query: QueryPatientsDto){ // Removed unused 'id'
+  async getallarchived(user: any, query: QueryPatientsDto) {
+    // Removed unused 'id'
     if (![Role.SUPERADMIN, Role.ADMIN, Role.FRONTDESK, Role.SUPERADMIN].includes(user.role)) {
       throw new ForbiddenException('You do not have permission to view archived patients.');
     }
@@ -468,7 +511,8 @@ export class PatientsService {
     const patient = await this.prisma.patient.findUnique({ where: { id } });
     if (!patient) throw new NotFoundException('Patient not found');
 
-    if (user.role === Role.PATIENT && user.id !== patient.userId) { // This was also correct, good to confirm
+    if (user.role === Role.PATIENT && user.id !== patient.userId) {
+      // This was also correct, good to confirm
       throw new ForbiddenException('You can only view your own appointments');
     }
 
@@ -492,7 +536,7 @@ export class PatientsService {
     };
   }
 
-  async getHistory( query: QueryPatientsDto, user: any) {
+  async getHistory(query: QueryPatientsDto, user: any) {
     console.log('Query parameters:', query);
     console.log('User attempting access:', user.id, 'Role:', user.role);
 
@@ -505,7 +549,7 @@ export class PatientsService {
 
     console.log(`Pagination: Page ${page}, Limit ${limit}, Skip ${skip}`);
 
-    const where: any = { };
+    const where: any = {};
     if (query.q) {
       where.OR = [
         { notes: { contains: query.q, mode: 'insensitive' } },
@@ -523,7 +567,7 @@ export class PatientsService {
       orderBy: { createdAt: 'desc' },
     });
 
-     console.log(`Total records found: ${total}, Records fetched: ${data.length}`);
+    console.log(`Total records found: ${total}, Records fetched: ${data.length}`);
 
     return {
       meta: { total, page, limit, pages: Math.ceil(total / limit) },
@@ -531,8 +575,12 @@ export class PatientsService {
     };
   }
 
-  async addHistory(patientId: string,  type: 'MEDICAL' | 'DENTAL', // 👈 New explicit 'type' argument
-  notes: string,   createdBy: any) {
+  async addHistory(
+    patientId: string,
+    type: 'MEDICAL' | 'DENTAL', // 👈 New explicit 'type' argument
+    notes: string,
+    createdBy: any,
+  ) {
     // The role check is handled by the decorator in the controller
     // Check if the patient exists
     console.log(`Attempting to add history for patient ID: ${patientId}`);
@@ -544,13 +592,13 @@ export class PatientsService {
     if (!patient) {
       throw new NotFoundException(`Patient with ID "${patientId}" not found.`);
     }
-     console.log(`Patient found: ${patientId}. Proceeding to create history record.`);
+    console.log(`Patient found: ${patientId}. Proceeding to create history record.`);
 
     const history = await this.prisma.patientHistory.create({
       data: {
         patientId: patientId,
         type: type,
-        notes:notes,
+        notes: notes,
         createdById: createdBy.id, // 👈 Pass the creator's ID
       },
     });
@@ -559,82 +607,79 @@ export class PatientsService {
 
     console.log(`Successfully created patient history record with ID: ${history.id}`);
 
-
     return history;
   }
 
   async logCommunication(patientId: string, type: string, message: string) {
-  // 1. Check if the patient exists
-  const patient = await this.prisma.patient.findUnique({ 
-    where: { id: patientId },
-  });
+    // 1. Check if the patient exists
+    const patient = await this.prisma.patient.findUnique({
+      where: { id: patientId },
+    });
 
-  if (!patient) {
-    throw new NotFoundException('Patient not found');
-  }
+    if (!patient) {
+      throw new NotFoundException('Patient not found');
+    }
 
-  // 2. Log the communication and RETURN the result
-  const communication = await this.prisma.communicationLog.create({ // 👈 FIX: Added 'await' and wrapped arguments in {}
-    data: { 
-      patientId,
-      type, 
-      message,
-    },
-  });
+    // 2. Log the communication and RETURN the result
+    const communication = await this.prisma.communicationLog.create({
+      // 👈 FIX: Added 'await' and wrapped arguments in {}
+      data: {
+        patientId,
+        type,
+        message,
+      },
+    });
 
-  await this.notificationsService.create({
+    await this.notificationsService.create({
       title: ' communication looged',
       message: `You have sucessfully log a communication.`,
       type: 'PATIENT',
       recipientId: patient.id,
     });
 
- 
-  return communication;
-}
-
-async getCommunications( patientId: string, query: any, user: any ) {
-  console.log('Query parameters:', query);
-  console.log('User attempting access:', user.id, 'Role:', user.role);
-
-  if (user.role === 'PATIENT' && user.id !== patientId) { // Example of stricter check
-    throw new ForbiddenException('Patients cannot list communication logs for other patients');
+    return communication;
   }
 
-  const page = parseInt(query.page || '1', 10);
-  const limit = Math.min(parseInt(query.limit || '20', 10), 100);
-  const skip = (page - 1) * limit;
-  console.log(`Pagination: Page ${page}, Limit ${limit}, Skip ${skip}`);
+  async getCommunications(patientId: string, query: any, user: any) {
+    console.log('Query parameters:', query);
+    console.log('User attempting access:', user.id, 'Role:', user.role);
 
-  const where: any = { patientId: patientId };
+    if (user.role === 'PATIENT' && user.id !== patientId) {
+      // Example of stricter check
+      throw new ForbiddenException('Patients cannot list communication logs for other patients');
+    }
 
-  if (query.q) {
-    where.OR = [
-      { message: { contains: query.q, mode: 'insensitive' } }, // Search the 'message' field
-      { type: { contains: query.q, mode: 'insensitive' } },   // Search the 'type' field
-    ];
+    const page = parseInt(query.page || '1', 10);
+    const limit = Math.min(parseInt(query.limit || '20', 10), 100);
+    const skip = (page - 1) * limit;
+    console.log(`Pagination: Page ${page}, Limit ${limit}, Skip ${skip}`);
+
+    const where: any = { patientId: patientId };
+
+    if (query.q) {
+      where.OR = [
+        { message: { contains: query.q, mode: 'insensitive' } }, // Search the 'message' field
+        { type: { contains: query.q, mode: 'insensitive' } }, // Search the 'type' field
+      ];
+    }
+
+    console.log('Database WHERE clause:', JSON.stringify(where));
+    // 4. Execute Transaction: Count and Fetch Data
+    const total = await this.prisma.communicationLog.count({ where }); // Target the correct table
+    const data = await this.prisma.communicationLog.findMany({
+      // Target the correct table
+      where,
+      skip,
+      take: limit,
+      orderBy: { createdAt: 'desc' },
+    });
+
+    console.log(`Total records found: ${total}, Records fetched: ${data.length}`);
+
+    // 5. Return Paginated Results
+    return {
+      meta: { total, page, limit, pages: Math.ceil(total / limit) },
+      data,
+    };
   }
-
-  console.log('Database WHERE clause:', JSON.stringify(where));
-  // 4. Execute Transaction: Count and Fetch Data
-  const total = await this.prisma.communicationLog.count({ where }); // Target the correct table
-  const data = await this.prisma.communicationLog.findMany({       // Target the correct table
-    where,
-    skip,
-    take: limit,
-    orderBy: { createdAt: 'desc' },
-  });
-
-  console.log(`Total records found: ${total}, Records fetched: ${data.length}`);
-
-  // 5. Return Paginated Results
-  return {
-    meta: { total, page, limit, pages: Math.ceil(total / limit) },
-    data,
-  };
 }
-
-
- 
-}
-  
