@@ -6,6 +6,7 @@ import {
   NotFoundException,
   InternalServerErrorException, // ⬅️ Added for consistency
   Logger,
+  RequestTimeoutException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
@@ -37,8 +38,9 @@ export class UsersService {
       throw new ForbiddenException('Only SUPERADMIN can create ADMIN role');
     }
 
-    try {
-      // Check for existing user (moved inside try/catch)
+    const TIMEOUT_MS = 10000;
+
+    const createPromise = (async () => {
       const existing = await this.prisma.user.findFirst({
         where: { OR: [{ email: dto.email }, { phone: dto.phone }] },
       });
@@ -47,7 +49,7 @@ export class UsersService {
       }
 
       const rawPassword = dto.password;
-      const hashed = await bcrypt.hash(rawPassword, 12);
+      const hashed = await bcrypt.hash(rawPassword, 10);
 
       const user = await this.prisma.user.create({
         data: {
@@ -70,34 +72,45 @@ export class UsersService {
         },
       });
 
-      // --- Email Sending Logic (Preserved and kept separate) ---
-      try {
-        await this.mailService.sendWelcomeEmail(
+      this.mailService
+        .sendWelcomeEmail(
           user.email,
           `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim(),
           user.role,
           rawPassword,
-        );
-      } catch (err: unknown) {
-        const errorMessage = err instanceof Error ? err.message : String(err);
-        this.logger.warn(`Welcome email failed for ${user.email}. Error: ${errorMessage}`);
-        // Log email failure to AuditLog
-        await this.prisma.auditLog.create({
-          data: {
-            userId: callerId,
-            action: 'EMAIL_FAIL',
-            resource: 'User',
-            resourceId: user.id,
-            changes: { reason: 'welcome_email_failed', error: errorMessage },
-          },
+        )
+        .catch((err) => {
+          const errorMessage = err instanceof Error ? err.message : String(err);
+          this.logger.warn(`Welcome email failed for ${user.email}. Error: ${errorMessage}`);
+          this.prisma.auditLog
+            .create({
+              data: {
+                userId: callerId,
+                action: 'EMAIL_FAIL',
+                resource: 'User',
+                resourceId: user.id,
+                changes: { reason: 'welcome_email_failed', error: errorMessage },
+              },
+            })
+            .catch((e) => this.logger.warn('Audit log failed: ' + e.message));
         });
-      }
 
-      const { password, ...rest } = user as any;
+      const { password, ...rest } = user;
       return rest;
+    })();
+    try {
+      return await Promise.race([
+        createPromise,
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new RequestTimeoutException('Request timed out')), TIMEOUT_MS),
+        ),
+      ]);
     } catch (err: any) {
+      if (err instanceof RequestTimeoutException) {
+        this.logger.error(`❌ User creation timed out after ${TIMEOUT_MS / 1000}s`);
+        throw new RequestTimeoutException('User creation took too long, please try again later.');
+      }
       this.logger.error(`Failed to create user by caller ${callerId}`, err.stack);
-      // Re-throw client-side errors
       if (err instanceof BadRequestException || err instanceof ForbiddenException) {
         throw err;
       }
