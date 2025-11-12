@@ -1,5 +1,16 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsOptional, IsDateString, IsEnum, IsNotEmpty, IsEmail, IsInt, Min, Max, IsNumber } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsDateString,
+  IsEnum,
+  IsNotEmpty,
+  IsEmail,
+  IsInt,
+  Min,
+  Max,
+  IsNumber,
+} from 'class-validator';
 import { AppointmentStatus } from './appointments.enum';
 import { Type } from 'class-transformer';
 import { MaritalStatus } from '@prisma/client';
@@ -37,7 +48,11 @@ export class CreateAppointmentDto {
   @IsString()
   reason?: string;
 
-  @ApiProperty({ description: 'Status of the appointment', enum: AppointmentStatus, default: AppointmentStatus.PENDING })
+  @ApiProperty({
+    description: 'Status of the appointment',
+    enum: AppointmentStatus,
+    default: AppointmentStatus.PENDING,
+  })
   @IsOptional()
   @IsEnum(AppointmentStatus)
   status?: AppointmentStatus;
@@ -113,8 +128,6 @@ export class SelfBookAppointmentDto {
   reason?: string;
 }
 
-
-
 /**
  * DTO for updating an appointment (partial update)
  */
@@ -169,4 +182,20 @@ export class QueryAppointmentsDto {
   @IsOptional()
   @IsString()
   fields?: string;
+
+  @ApiPropertyOptional({
+    description: 'Filter appointments by assigned doctor ID',
+    example: '197e3907-3806-494c-994b-a01a458b87c5',
+  })
+  @IsOptional()
+  @IsString()
+  doctorId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Filter appointments by patient ID',
+    example: 'cmhtd5cuz000cc128wenzysds',
+  })
+  @IsOptional()
+  @IsString()
+  patientId?: string;
 }

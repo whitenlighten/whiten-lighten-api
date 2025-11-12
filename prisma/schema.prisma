@@ -296,8 +296,9 @@ model User {
   PharmacySale            PharmacySale[]
   createdTasks            Task[]               @relation("CreatedTasks")
 
-  assignedTasks Task[] @relation("AssignedTasks")
+  assignedTasks Task[]       @relation("AssignedTasks")
   tasks         Task[]
+  auditTrails   AuditTrail[]
 }
 
 // New Model for Refresh Tokens
@@ -385,6 +386,7 @@ model Appointment {
   ClientAttendance ClientAttendance[]
   DentalChart      DentalChart[]
   DentalTreatment  DentalTreatment[]
+  Task             Task[]
 
   @@index([patientId])
   @@index([doctorId])
@@ -392,7 +394,6 @@ model Appointment {
   @@index([status])
   @@index([timeslot])
   @@index([createdAt])
-  Task Task[]
 }
 
 model DentalChart {
@@ -770,27 +771,27 @@ model Payment {
 
 // tasks / automation
 model Task {
-  id                   String    @id @default(uuid())
-  title                String
-  description          String?
-  status               String    @default("PENDING") // PENDING | COMPLETED | CANCELLED
-  priority             String? // LOW | MEDIUM | HIGH
-  dueDate              DateTime?
-  assignedToId         String?
-  assignedToUser       User?     @relation("AssignedTasks", fields: [assignedToId], references: [id])
-  createdById          String
-  patient              Patient?  @relation(fields: [relatedPatientId], references: [id])
-  relatedPatientId     String?   @map("related_patient_id")
-  meta                 Json? // store arbitrary metadata
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
-  createdBy            User      @relation("CreatedTasks", fields: [createdById], references: [id])
+  id               String    @id @default(uuid())
+  title            String
+  description      String?
+  status           String    @default("PENDING") // PENDING | COMPLETED | CANCELLED
+  priority         String? // LOW | MEDIUM | HIGH
+  dueDate          DateTime?
+  assignedToId     String?
+  assignedToUser   User?     @relation("AssignedTasks", fields: [assignedToId], references: [id])
+  createdById      String
+  patient          Patient?  @relation(fields: [relatedPatientId], references: [id])
+  relatedPatientId String?   @map("related_patient_id")
+  meta             Json? // store arbitrary metadata
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  createdBy        User      @relation("CreatedTasks", fields: [createdById], references: [id])
 
   // relations
   appointment          Appointment? @relation(fields: [relatedAppointmentId], references: [id])
   relatedAppointmentId String?      @map("related_appointment_id")
   // relations
-  User User[]
+  User                 User[]
 }
 
 model NoteSuggestion {
@@ -819,15 +820,18 @@ model NoteSuggestion {
 }
 
 model AuditTrail {
-  id         String   @id @default(cuid())
-  actorId    String // user who performed the action
-  actorRole  String
-  action     String // e.g., "CREATE_PATIENT", "APPROVE_APPOINTMENT"
-  entityType String // e.g., "PATIENT", "APPOINTMENT"
-  entityId   String
-  details    String?
-  ipAddress  String? // optional JSON or description
-  createdAt  DateTime @default(now())
+  id                String   @id @default(cuid())
+  actorId           String? // user who performed the action
+  actorRole         String
+  action            String // e.g., "CREATE_PATIENT", "APPROVE_APPOINTMENT"
+  entityType        String // e.g., "PATIENT", "APPOINTMENT"
+  entityId          String
+  actionDescription String?
+  details           String?
+  ipAddress         String? // optional JSON or description
+  createdAt         DateTime @default(now())
+
+  user User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
 
   @@index([actorId])
   @@index([action])

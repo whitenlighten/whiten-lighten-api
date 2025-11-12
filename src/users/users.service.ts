@@ -121,7 +121,7 @@ export class UsersService {
   // ----------------------------------------------------------------------
   // 2. FIND ALL
   // ----------------------------------------------------------------------
-  async findAll(query: QueryUsersDto) {
+  async findAll(query: QueryUsersDto, callerRole: Role, callerId: string) {
     try {
       const page = parseInt(query.page || '1', 10);
       const limit = Math.min(parseInt(query.limit || '20', 10), 100);
@@ -141,6 +141,16 @@ export class UsersService {
             { lastName: { contains: query.q, mode: 'insensitive' } },
           ],
         });
+      }
+
+      if (callerRole === Role.FRONTDESK) {
+        // Frontdesk can only see doctors
+        conditions.push({ role: Role.DOCTOR });
+      } else if (callerRole === Role.DOCTOR) {
+        // Doctors can only see themselves (if you ever expose user list to them)
+        conditions.push({ id: callerId });
+      } else if (![Role.ADMIN, Role.SUPERADMIN, Role.NURSE].includes(callerRole as any)) {
+        throw new ForbiddenException('Insufficient permissions to list users');
       }
 
       let selectedFields: Record<string, boolean> = { id: true };
