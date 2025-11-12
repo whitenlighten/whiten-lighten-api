@@ -57,7 +57,8 @@ export class AuditTrailService {
           entityType,
           entityId,
           actionDescription,
-          actorId: validUser ? validUser.id : null,
+          //   actorId: validUser ? validUser.id : null,
+          ...(validUser?.id ? { actorId: validUser?.id } : {}),
           actorRole: actor?.role ?? 'SYSTEM',
           details:
             details && typeof details === 'object'
