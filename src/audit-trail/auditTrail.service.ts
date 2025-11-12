@@ -124,7 +124,7 @@ export class AuditTrailService {
               },
             },
           },
-        }),
+        }) as any,
       ]);
 
       this.logger.debug(`[TRACE] 3. $transaction successful. Total count received: ${total}.`);
