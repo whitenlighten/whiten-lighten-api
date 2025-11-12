@@ -245,6 +245,11 @@ export class PatientsService {
     const skip = (page - 1) * limit;
 
     const where: any = {};
+
+    if (query.doctorId || user.role === Role.DOCTOR) {
+      where.primaryDoctorId = query.doctorId || user.id;
+    }
+
     if (query.q) {
       where.OR = [
         { email: { contains: query.q, mode: 'insensitive' } },

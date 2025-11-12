@@ -9,6 +9,7 @@ import {
   Param,
   Patch,
   Delete,
+  Req,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { UsersService } from './users.service';
@@ -40,10 +41,11 @@ export class UsersController {
 
   // LIST users - admin+ roles can see; you can restrict further if needed
   @Get()
-  @Roles(Role.SUPERADMIN, Role.ADMIN)
+  @Roles(Role.SUPERADMIN, Role.ADMIN, Role.FRONTDESK, Role.NURSE)
   @ApiOperation({ summary: 'List users (paginated). Admin/Superadmin only' })
-  async findAll(@Query() query: QueryUsersDto) {
-    return this.users.findAll(query);
+  async findAll(@Query() query: QueryUsersDto, @Req() req: any) {
+    const user = req.user;
+    return this.users.findAll(query, user.role, user.id);
   }
   // Get single user
   @Get(':id')

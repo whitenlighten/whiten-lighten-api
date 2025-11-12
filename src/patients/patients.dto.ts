@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { BloodGroup, Gender, MaritalStatus, PaymentMethod } from '@prisma/client';
-import { 
+import {
   IsEmail,
   IsEnum,
   IsNotEmpty,
@@ -36,7 +36,7 @@ export class CreatePatientDto {
   @IsString()
   dateOfBirth?: string;
 
-  @ApiProperty({example: '25'})
+  @ApiProperty({ example: '25' })
   @IsOptional()
   @IsNumberString()
   age?: string; // Changed to IsNumberString to allow string input that is a number
@@ -60,9 +60,6 @@ export class CreatePatientDto {
   @IsOptional()
   @IsEnum(BloodGroup)
   bloodGroup?: BloodGroup;
-
-
-
 }
 
 export class SelfRegisterPatientDto {
@@ -89,9 +86,9 @@ export class SelfRegisterPatientDto {
   @IsOptional()
   // Use IsEnum to validate values match Gender enum
   @IsString()
-  gender?: Gender; 
+  gender?: Gender;
 
-  @ApiPropertyOptional({example: '25'})
+  @ApiPropertyOptional({ example: '25' })
   @IsOptional()
   @IsNumberString()
   age?: string;
@@ -205,6 +202,13 @@ export class QueryPatientsDto {
   @IsOptional()
   @IsString()
   fields?: string;
+
+  @ApiPropertyOptional({
+    description: 'Filter patients under a specific doctor',
+  })
+  @IsOptional()
+  @IsString()
+  doctorId?: string;
 }
 
 export enum HistoryType {
@@ -213,13 +217,11 @@ export enum HistoryType {
 }
 
 export class AddPatientHistoryDto {
-
   @ApiProperty({ example: 'Patient has a history of allergies to penicillin.' })
   @IsString()
   @IsNotEmpty()
   notes!: string;
 }
-
 
 export class LogCommunicationDto {
   @ApiProperty({
