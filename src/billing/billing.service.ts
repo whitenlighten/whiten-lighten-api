@@ -70,13 +70,14 @@ export class BillingService {
       });
 
       // Log invoice creation for compliance
-      await this.auditTrailService.log(
-        'BILLING_INVOICE_CREATED', 
-        'Invoice',     
-        invoice.id,         
-        user, 
-        { reference: invoice.reference, patientId: invoice.patientId, amount: invoice.amount }
-      );
+      await this.auditTrailService.log({
+        action: 'BILLING_INVOICE_CREATED',
+        entityType: 'Invoice',
+        entityId: invoice.id,
+        actorId: user.id,
+        actorRole: user.role,
+        details: { reference: invoice.reference, patientId: invoice.patientId, amount: invoice.amount }
+      });
 
       this.logger.log(`Invoice created: ${invoice.id} by ${user.id}`);
       return invoice;
@@ -215,18 +216,19 @@ export class BillingService {
         }
 
         // 3. Log the action (Audit Trail)
-        await this.auditTrailService.log(
-          'BILLING_PAYMENT', 
-          'Payment',     
-          payment.id,         
-          user, 
-          { 
-            invoiceId: invoiceId, 
+        await this.auditTrailService.log({
+          action: 'BILLING_PAYMENT',
+          entityType: 'Payment',
+          entityId: payment.id,
+          actorId: user.id,
+          actorRole: user.role,
+          details: {
+            invoiceId: invoiceId,
             amount: payment.amount,
             newInvoiceStatus: newInvoiceStatus,
             method: payment.method
           }
-        );
+        });
         
         return payment;
       });
@@ -294,7 +296,13 @@ export class BillingService {
           });
 
           // Log the action (Audit Trail)
-          await this.auditTrailService.log('BILLING_WEBHOOK_PAID', 'Payment', payment.id, null, { invoiceId: invoice.id, ref: transactionRef });
+          await this.auditTrailService.log({
+            action: 'BILLING_WEBHOOK_PAID',
+            entityType: 'Payment',
+            entityId: payment.id,
+            actorId: 'SYSTEM', // Webhooks are system-driven
+            details: { invoiceId: invoice.id, ref: transactionRef }
+          });
         });
         
         this.logger.log(`Invoice ${invoice.id} marked PAID via webhook.`);

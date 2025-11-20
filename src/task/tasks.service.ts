@@ -46,13 +46,14 @@ export class TasksService {
       });
 
       
-      await this.auditTrailService.log(
-        'TASK_CREATED',
-         'Task', 
-         task.id, 
-         user,
-         { title: task.title, assignedToId: task.assignedToId, patientId: task.relatedPatientId }
-        );
+      await this.auditTrailService.log({
+        action: 'TASK_CREATED',
+        entityType: 'Task',
+        entityId: task.id,
+        actorId: user,
+        actorRole: user.role,
+        details: { title: task.title, assignedToId: task.assignedToId, patientId: task.relatedPatientId }
+      });
 
 
       this.eventEmitter.emit('task.created', { taskId: task.id, createdById: user.id, isRecursiveCall: dto.isRecursiveCall });
@@ -97,10 +98,11 @@ export class TasksService {
       }
 
       // ⚡ REFACTOR: Using Promise.all() for concurrent read queries
-      const [total, data] = await this.prisma.$transaction([ // ⬅️ Changed from Promise.all to $transaction for consistency
+      const [total, data] = await Promise.all([
         this.prisma.task.count({ where }), // Query 1: Get the total number of tasks
+        this.prisma.task.count({ where }),
         this.prisma.task.findMany({ // Query 2: Get the paged data
-          where,
+          where, 
           skip,
           take: limit,
           orderBy: { createdAt: 'desc' }, // Added orderBy for consistent results
@@ -196,13 +198,14 @@ export class TasksService {
         return acc;
       }, {});
       
-      await this.auditTrailService.log(
-        'TASK_UPDATED',
-        'Task',
-        updated.id,
-        user,
-        changes
-      );
+      await this.auditTrailService.log({
+        action: 'TASK_UPDATED',
+        entityType: 'Task',
+        entityId: updated.id,
+        actorId: user,
+        actorRole: user.role,
+        details: changes
+      });
 
       this.eventEmitter.emit('task.updated', { taskId: id, actorId: user.id });
 
@@ -238,13 +241,14 @@ export class TasksService {
       await this.prisma.task.delete({ where: { id } });
       
       // 🛡️ AUDIT LOG: Task Deletion
-      await this.auditTrailService.log(
-          'TASK_DELETED',
-          'Task',
-          id,
-          user,
-          { title: existing.title }
-      );
+      await this.auditTrailService.log({
+        action: 'TASK_DELETED',
+        entityType: 'Task',
+        entityId: id,
+        actorId: user,
+        actorRole: user.role,
+        details: { title: existing.title }
+      });
       
       this.eventEmitter.emit('task.deleted', { taskId: id });
       return { message: 'Deleted' };
