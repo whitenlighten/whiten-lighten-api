@@ -21,7 +21,6 @@ import { AddPatientHistoryDto, CreatePatientDto, LogCommunicationDto, QueryPatie
 import { GetUser, GetUser as GetUserId } from 'src/common/decorator/get-user.decorator';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { Public } from 'src/common/decorator/public.decorator';
-import { QueryAppointmentsDto } from 'src/appointments/appointment.dto';
 
 @ApiTags('patients')
 @ApiBearerAuth('JWT-auth')

@@ -1,10 +1,12 @@
 import { BadRequestException, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
 import { PatientsService } from '../patients/patients.service';
 import { PrismaService } from 'prisma/prisma.service';
-import { CreateAppointmentDto, PublicBookAppointmentDto, QueryAppointmentsDto } from './appointment.dto';
+import { CreateAppointmentDto, PublicBookAppointmentDto, QueryAppointmentsDto, UpdateAppointmentDto } from './appointment.dto';
 import { AppointmentStatus } from './appointments.enum';
 import { MailService } from 'src/utils/mail.service';
 import { PatientStatus, User } from '@prisma/client';
+import { Role } from '@prisma/client';
+
 
 @Injectable()
 export class AppointmentsService {
@@ -233,7 +235,7 @@ export class AppointmentsService {
     return this.updateStatus(id, AppointmentStatus.COMPLETED);
   }
 
-// --- MERGED LOGIC (updateStatus and Helpers) ---
+
 
   private async updateStatus(id: string, status: AppointmentStatus) {
     this.logger.debug(`Attempting to update status of appointment ${id} to ${status}`);
@@ -257,8 +259,7 @@ export class AppointmentsService {
       });
 
       this.logger.log(`Successfully updated status for appointment ${id} to ${status}. Sending notifications...`);
-           
-      // Data needed for emails
+        
       const patientEmail = appt.patient.email;
       const patientName = `${appt.patient.firstName} ${appt.patient.lastName}`;
       const doctorEmail = appt.doctor?.email;
@@ -332,34 +333,130 @@ export class AppointmentsService {
     }
   }
 
-  // --- EXISTING METHODS (UNCHANGED) ---
+ 
 
-  async updateAppointment(
-    id: string,
-    update: { status?: AppointmentStatus; date?: Date; reason?: string },
-  ) {
-    this.logger.debug(`Attempting to update appointment ${id}`);
-    try {
-      const appt = await this.prisma.appointment.findUnique({ where: { id } });
-      if (!appt) throw new NotFoundException('Appointment not found');
+ async updateAppointment(
+        id: string,
+        update: UpdateAppointmentDto,
+    ) {
+        this.logger.debug(`Attempting to update appointment ${id}`);
+        console.log('Received update DTO:', update); // <<< Add this line
+        console.log('Received doctorId:', update.doctorId); // <<< Add this line
+        try {
+            // Fetch the existing appointment with related patient and current doctor for notification logic
+            const appt = await this.prisma.appointment.findUnique({
+                where: { id },
+                include: { patient: true, doctor: true },
+            });
+            if (!appt) {
+                this.logger.warn(`Appointment with ID ${id} not found for update.`);
+                throw new NotFoundException('Appointment not found.');
+            }
 
-      const updatedAppointment = await this.prisma.appointment.update({
-        where: { id },
-        data: {
-          status: (update.status ?? appt.status) as any,
-          date: update.date ?? appt.date,
-          reason: update.reason ?? appt.reason,
-        },
-      });
-      this.logger.log(`Successfully updated appointment ${id}`);
-      return updatedAppointment;
-    } catch (err: any) {
-      this.logger.error(`Failed to update appointment ${id}: ${err.message}`, err.stack);
-      if (err instanceof NotFoundException) throw err;
-      throw new InternalServerErrorException('Could not update appointment.');
-    }
-  }
+            let newDoctor: User | null = null;
+            let assignmentChanged = false;
 
+            // Prepare the data object for a true partial update
+            const dataToUpdate: any = {};
+            if (update.status !== undefined) dataToUpdate.status = update.status;
+            if (update.date !== undefined) dataToUpdate.date = new Date(update.date);
+            if (update.reason !== undefined) dataToUpdate.reason = update.reason;
+
+ 
+            if (update.doctorId !== undefined) {
+                // Check if the assignment is actually changing to trigger notifications later
+                if (update.doctorId !== appt.doctorId) {
+                    assignmentChanged = true;
+                }
+
+                // If doctorId is not null, validate the user exists and has a valid role.
+                if (update.doctorId !== null) {
+                    this.logger.debug(`Validating doctor ID ${update.doctorId} for appointment ${id}.`);
+                    newDoctor = await this.prisma.user.findFirst({
+                        where: {
+                            id: update.doctorId,
+                            role: { in: [Role.DOCTOR, Role.NURSE, Role.ADMIN, Role.SUPERADMIN] },
+                        },
+                    });
+
+                    if (!newDoctor) {
+                        this.logger.warn(`Assignable staff member with ID ${update.doctorId} not found or has an invalid role.`);
+                        throw new NotFoundException(`Assignable staff member with ID ${update.doctorId} not found.`);
+                    }
+                } else {
+                    // If doctorId is explicitly set to null, it's an unassignment.
+                    this.logger.debug(`Unassigning doctor from appointment ${id}`);
+                    newDoctor = null; // Ensure newDoctor is null for notification logic
+                }
+
+                // Add the doctorId (either a UUID or null) to the data to be updated.
+                dataToUpdate.doctorId = update.doctorId;
+            }
+            // ----------------------------------------------------
+
+            const updatedAppointment = await this.prisma.appointment.update({
+                where: { id },
+                data: dataToUpdate, // Use the dynamically built dataToUpdate object
+                include: { patient: true, doctor: true }, // Include relations for the response and notification logic
+            });
+
+            this.logger.log(`Successfully updated appointment ${id}.`);
+
+            // --- Notification Logic for Doctor Assignment ---
+            // Only send this notification if a doctor was newly assigned or changed
+            if (assignmentChanged && newDoctor) { // newDoctor will be null if unassigned
+                const appointmentDateStr = updatedAppointment.date.toLocaleDateString();
+                const appointmentTimeStr = updatedAppointment.date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                const appointmentDateTime = `${appointmentDateStr} at ${appointmentTimeStr}`;
+                const patientName = `${appt.patient.firstName} ${appt.patient.lastName}`; // Use original patient name
+
+                // Send a dedicated notification to the NEWLY assigned doctor
+                // Only send if a doctor was actually assigned (not unassigned)
+                if (newDoctor.email) {
+                    this.sendNewAssignmentNotificationToDoctor(
+                        newDoctor.email,
+                        newDoctor.firstName,
+                        patientName,
+                        appointmentDateTime,
+                        updatedAppointment.service || 'N/A', // Provide service, or 'N/A' if it can be null
+                    ).catch(err => this.logger.error(`Failed to send assignment notification to Dr. ${newDoctor.id} for appointment ${id}`, err.stack));
+                }
+            }
+            // ----------------------------------------------------
+
+            return updatedAppointment;
+        } catch (err: any) {
+            this.logger.error(`Failed to update appointment ${id}: ${err.message}`, err.stack);
+            // Re-throw specific exceptions for proper client-side handling
+            if (err instanceof NotFoundException || err instanceof BadRequestException) {
+                throw err;
+            }
+            throw new InternalServerErrorException('Could not update appointment.');
+        }
+    }
+
+private async sendNewAssignmentNotificationToDoctor(
+    doctorEmail: string, 
+    doctorName: string | null | undefined, 
+    patientName: string, 
+    appointmentDate: string, // formatted date/time string
+    service: string,
+) {
+    const subject = '🔔 NEW APPOINTMENT ASSIGNED: Staff Action';
+    const html = `
+        <h3>New Patient Assigned</h3>
+        <p>Dear Dr. ${doctorName ?? ''},</p>
+        <p>A staff member has **assigned** the following appointment to your schedule:</p>
+        <ul>
+            <li>**Patient:** ${patientName}</li>
+            <li>**Date/Time:** ${appointmentDate}</li>
+            <li>**Service:** ${service}</li>
+        </ul>
+        <p>Please review the details on your dashboard.</p>
+    `;
+    
+    await this.mailService.sendMail(doctorEmail, subject, html);
+}
   
 
  async findAll(query: QueryAppointmentsDto) {

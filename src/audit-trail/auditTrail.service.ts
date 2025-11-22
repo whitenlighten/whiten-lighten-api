@@ -66,7 +66,7 @@ export class AuditTrailService {
                 data: {
                     action: args.action,
                     entityType: args.entityType,
-                    entityId: entityId,
+                    entityId: entityId, 
                     actorId: actorId,
                     actorRole: actorRole,
                     actionDescription: finalActionDescription,

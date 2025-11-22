@@ -205,4 +205,28 @@ Please log in and change your password immediately.
     return this.sendMail(to, subject, text, html);
   }
  
+async sendNewAssignmentNotificationToDoctor(
+      to: string, 
+      doctorName: string | undefined, 
+      patientName: string, 
+      appointmentDateTime: string, // formatted date/time string
+      service: string,
+  ) {
+      const subject = '🔔 NEW APPOINTMENT ASSIGNED: Staff Action';
+      const text = `Dear Dr. ${doctorName ?? ''}, A staff member has assigned the patient ${patientName} on ${appointmentDateTime} for service ${service} to your schedule.`;
+      const html = `
+          <h3>New Patient Assigned</h3>
+          <p>Dear Dr. ${doctorName ?? ''},</p>
+          <p>A staff member has **assigned** the following appointment to your schedule:</p>
+          <ul>
+              <li><strong>Patient:</strong> ${patientName}</li>
+              <li><strong>Date/Time:</strong> ${appointmentDateTime}</li>
+              <li><strong>Service:</strong> ${service}</li>
+          </ul>
+          <p>Please review the details on your dashboard.</p>
+      `;
+      
+      return this.sendMail(to, subject, text, html); 
+  }
 }
+
