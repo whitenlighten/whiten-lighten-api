@@ -256,6 +256,7 @@ export class PatientsService {
         { phone: { contains: query.q, mode: 'insensitive' } },
         { firstName: { contains: query.q, mode: 'insensitive' } },
         { lastName: { contains: query.q, mode: 'insensitive' } },
+        { patientId: { contains: query.q, mode: 'insensitive' } },
       ];
     }
 
