@@ -302,8 +302,6 @@ export class AppointmentsService {
     return this.updateStatus(id, AppointmentStatus.COMPLETED);
   }
 
-  // --- MERGED LOGIC (updateStatus and Helpers) ---
-
   private async updateStatus(id: string, status: AppointmentStatus) {
     this.logger.debug(`Attempting to update status of appointment ${id} to ${status}`);
     try {
@@ -325,7 +323,7 @@ export class AppointmentsService {
 
       this.logger.log(
         `Successfully updated status for appointment ${id} to ${status}. Sending notifications...`,
-      ); // Data needed for emails
+      );
       const patientEmail = appt.patient.email;
       const patientName = `${appt.patient.firstName} ${appt.patient.lastName}`;
       const doctorEmail = appt.doctor?.email;
@@ -335,7 +333,7 @@ export class AppointmentsService {
         hour: '2-digit',
         minute: '2-digit',
       });
-      const appointmentDateTime = `${appointmentDateStr} at ${appointmentTimeStr}`; // Distinct Email Logic for Patient, Doctor, and Admin
+      const appointmentDateTime = `${appointmentDateStr} at ${appointmentTimeStr}`;
 
       if (status === AppointmentStatus.CONFIRMED) {
         // 1. Email to Patient: Appointment Confirmed (Friendly)

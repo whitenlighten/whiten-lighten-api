@@ -24,6 +24,7 @@ export class AuditTrailController {
   findAll(@Query() query: AuditQueryDto) {
     this.logger.log('Request passed guards and reached findAll method in AuditTrailController.');
     return this.auditTrailService.findAll(query);
+<<<<<<< HEAD
   }
 
   @Get('statistics')
@@ -42,6 +43,31 @@ export class AuditTrailController {
   @ApiResponse({ status: 200, description: 'Successfully retrieved entity audit history.' })
   @ApiResponse({ status: 403, description: 'Forbidden resource.' })
   findByEntity(@Param('entityType') entityType: string, @Param('entityId') entityId: string) {
+    this.logger.log(`Request for audit history for ${entityType}:${entityId}.`);
+    return this.auditTrailService.findByEntity(entityType, entityId);
+=======
+>>>>>>> 108513cf59add86cbdff3313931af8a14cf5fdb0
+  }
+
+  @Get('statistics')
+  @Roles(Role.ADMIN, Role.DOCTOR, Role.FRONTDESK, Role.NURSE, Role.SUPERADMIN)
+  @ApiOperation({ summary: 'Get statistics about audit log activity' })
+  @ApiResponse({ status: 200, description: 'Successfully retrieved audit statistics.' })
+  @ApiResponse({ status: 403, description: 'Forbidden resource.' })
+  getStatistics() {
+    this.logger.log('Request to get audit statistics.');
+    return this.auditTrailService.getStatistics();
+  }
+
+  @Get('entity/:entityType/:entityId')
+  @Roles(Role.ADMIN, Role.DOCTOR, Role.FRONTDESK, Role.NURSE, Role.SUPERADMIN)
+  @ApiOperation({ summary: 'Get the audit history for a specific entity' })
+  @ApiResponse({ status: 200, description: 'Successfully retrieved entity audit history.' })
+  @ApiResponse({ status: 403, description: 'Forbidden resource.' })
+  findByEntity(
+    @Param('entityType') entityType: string,
+    @Param('entityId') entityId: string,
+  ) {
     this.logger.log(`Request for audit history for ${entityType}:${entityId}.`);
     return this.auditTrailService.findByEntity(entityType, entityId);
   }
