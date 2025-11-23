@@ -606,6 +606,56 @@ export class AppointmentsService {
 
     await this.mailService.sendMail(doctorEmail, subject, html);
   }
+  async findAll(query: QueryAppointmentsDto) {
+    this.logger.debug(`Finding all appointments with query: ${JSON.stringify(query)}`);
+    try {
+      const page = Math.max(query.page || 1, 1);
+      const limit = Math.min(Math.max(query.limit || 20, 1), 100);
+      const skip = (page - 1) * limit;
+
+      const where: any = {};
+      if (query.status) {
+        where.status = query.status;
+      }
+      if (query.q) {
+        where.OR = [
+          { reason: { contains: query.q, mode: 'insensitive' } },
+          { service: { contains: query.q, mode: 'insensitive' } },
+        ];
+      }
+
+      const [total, data] = await Promise.all([
+        this.prisma.appointment.count({ where }), // Run count query
+        this.prisma.appointment.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy: { date: 'desc' },
+          include: {
+            patient: true,
+            doctor: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                specialization: true,
+              },
+            },
+          },
+        }),
+      ]);
+
+      this.logger.log(`Found ${data.length} of ${total} appointments.`);
+      return {
+        meta: { total, page, limit, pages: Math.ceil(total / limit) },
+        data,
+      };
+    } catch (err: any) {
+      this.logger.error(`Failed to find all appointments: ${err.message}`, err.stack);
+      throw new InternalServerErrorException('Could not retrieve appointments.');
+    }
+  }
   async findOne(id: string, projection?: any) {
     const appointment = await this.prisma.appointment.findUnique({
       where: { id },
