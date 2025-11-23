@@ -80,10 +80,10 @@ export class AestheticsController {
     @Roles(Role.SUPERADMIN, Role.ADMIN, Role.DOCTOR, Role.NURSE) 
     @ApiOperation({ summary: 'Record a new consent form for a patient' }) 
     async createConsent(
-        @Param('patientId') patientId: string, 
+        @Param('patientId') patientId: string,
         @Body() dto: CreateConsentDto,
-        @GetUser() user: { userId: string, role: Role }) {
-        return this.service.createConsent(patientId, dto);
+        @GetUser() user: { userId: string }) {
+        return this.service.createConsent(patientId, user.userId, dto);
     }
 
     // List Consents: GET /aesthetics/:patientId/consents
@@ -102,8 +102,9 @@ export class AestheticsController {
     @Roles(Role.SUPERADMIN, Role.ADMIN, Role.DOCTOR) // Assuming only Doctors/Admins can delete consents
     @ApiOperation({ summary: 'Soft-delete a consent form' }) 
     async deleteConsent(
-        @Param('id') id: string,) {
-        return this.service.deleteConsent(id);
+        @Param('id') id: string,
+        @GetUser() user: { userId: string }) {
+        return this.service.deleteConsent(id, user.userId);
     }
 
     // ------------------ ADDONS ------------------
@@ -143,7 +144,7 @@ export class AestheticsController {
     @ApiOperation({ summary: 'Soft-delete an addon/item' }) 
     async deleteAddon(
         @Param('id') id: string,
-        @GetUser() user: { role: Role }) {
-        return this.service.deleteAddon(id);
+        @GetUser() user: { userId: string }) {
+        return this.service.deleteAddon(id, user.userId);
     }
 }

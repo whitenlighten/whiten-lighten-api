@@ -40,14 +40,13 @@ export class NotificationsService {
       });
 
       // Log to Audit Trail
-      await this.auditTrailService.log(
-        'CREATE_NOTIFICATION',
-        'Notification',
-        notification.id,
-        { id: 'SYSTEM', role: 'SYSTEM' },
-        `Notification sent to ${recipient.firstName} ${recipient.lastName}: ${dto.title}`,
-      );
-
+     await this.auditTrailService.log({
+    action: 'NOTIFICATION_SENT', // Or your specific action string
+    entityType: 'Notification',
+    entityId: notification.id, // Assuming notification.id is a string
+    actorId: 'SYSTEM', // actorId should be a string
+    actionDescription: `Notification sent to ${recipient.firstName} ${recipient.lastName}: ${dto.title}`
+  });
       return notification;
     } catch (err: any) {
       this.logger.error(`Failed to create notification: ${err.message}`, err.stack);
@@ -121,13 +120,14 @@ export class NotificationsService {
 
       await this.prisma.notification.delete({ where: { id } });
 
-      await this.auditTrailService.log(
-        'DELETE_NOTIFICATION',
-        'Notification',
-        existing.id,
-        user,
-        `Notification "${existing.title}" deleted by ${user.role}`,
-      );
+      await this.auditTrailService.log({
+    action: 'NOTIFICATION_DELETED', // Or your specific action string
+    entityType: 'Notification',
+    entityId: existing.id,
+    actorId: user,
+    actorRole: user.role,
+    actionDescription: `Notification "${existing.title}" deleted by ${user.role}`
+});
 
       return { message: 'Notification deleted successfully' };
     } catch (err: any) {

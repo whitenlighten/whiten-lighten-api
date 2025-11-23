@@ -19,13 +19,14 @@ export class PharmacyService {
       const newItem = await this.prisma.pharmacyItem.create({ data: dto });
 
       // 🛡️ AUDIT LOG
-      await this.auditTrailService.log(
-        'INVENTORY_CREATE', 
-        'PharmacyItem',     
-        newItem.id,         
-        user, 
-        { sku: newItem.sku, name: newItem.name }
-      );
+      await this.auditTrailService.log({
+    action: 'PHARMACY_ITEM_CREATED', // Or your specific action name
+    entityType: 'PharmacyItem',
+    entityId: newItem.id,
+    actorId: user,
+    actorRole: user.role,
+    details: { sku: newItem.sku, name: newItem.name }
+});
       
       return newItem;
     } catch (error) {
@@ -76,14 +77,15 @@ export class PharmacyService {
       const updatedItem = await this.prisma.pharmacyItem.update({ where: { id }, data: dto });
 
       // 🛡️ AUDIT LOG: SUCCESSFUL ITEM UPDATE
-      await this.auditTrailService.log(
-        'INVENTORY_UPDATE', 
-        'PharmacyItem',     
-        id,         
-        user,
-        // Log what changed by comparing DTO to old item properties (simplified)
-        { changes: dto } 
-      );
+     await this.auditTrailService.log({
+    action: 'PHARMACY_ITEM_UPDATED', // Or your specific action name
+    entityType: 'PharmacyItem',
+    entityId: id,
+    actorId: user,
+    actorRole: user.role,
+    details: { changes: dto }
+});
+
 
       return updatedItem;
     } catch (error) {
@@ -101,13 +103,15 @@ export class PharmacyService {
       const deletedItem = await this.prisma.pharmacyItem.delete({ where: { id } });
 
       // 🛡️ AUDIT LOG: SUCCESSFUL ITEM DELETION
-      await this.auditTrailService.log(
-        'INVENTORY_DELETE', 
-        'PharmacyItem',     
-        id,         
-        user,
-        { name: deletedItem.name, sku: deletedItem.sku }
-      );
+      await this.auditTrailService.log({
+    action: 'PHARMACY_ITEM_DELETED', // Or your specific action name
+    entityType: 'PharmacyItem',
+    entityId: id,
+    actorId: user,
+    actorRole: user.role,
+    details: { name: deletedItem.name, sku: deletedItem.sku }
+});
+
       
       return deletedItem;
     } catch (error) {
@@ -143,19 +147,15 @@ export class PharmacyService {
       });
 
       // 🛡️ AUDIT LOG: SUCCESSFUL SALE REGISTRATION
-      await this.auditTrailService.log(
-        'SALES_REGISTERED', 
-        'PharmacySale',     
-        sale.id,         
-        user,
-        { 
-          itemId: itemId, 
-          quantity: qty, 
-          oldStock: item.stock, 
-          newStock: item.stock - qty 
-        }
-      );
-      
+      await this.auditTrailService.log({
+    action: 'PHARMACY_SALE_CREATED', // Or your specific action name
+    entityType: 'PharmacySale',
+    entityId: sale.id,
+    actorId: user,
+    actorRole: user.role,
+    details: { /* The object with itemId, quantity, etc. */ }
+});
+
       return sale;
     });
   }

@@ -111,13 +111,24 @@ async getProcedure(id: string) {
     }
 }
 
-async updateProcedure(id: string, doctorId: string, dto: UpdateProcedureDto) {
+async updateProcedure(id: string, userId: string, dto: UpdateProcedureDto) {
     try { 
-        const proc = await this.prisma.aestheticProcedure.findUnique({ where: { id } });
+        const [proc, user] = await Promise.all([
+            this.prisma.aestheticProcedure.findUnique({ where: { id } }),
+            this.prisma.user.findUnique({ where: { id: userId } })
+        ]);
         
         if (!proc || proc.deletedAt) {
             this.logger.warn(`Attempt to update non-existent/deleted procedure ID: ${id}`);
             throw new NotFoundException('Procedure not found');
+        }
+
+        if (!user) {
+            throw new ForbiddenException('User performing the update not found.');
+        }
+
+        if (user.role !== Role.ADMIN && user.role !== Role.SUPERADMIN && proc.doctorId !== userId) {
+            throw new ForbiddenException('You can only update procedures you created.');
         }
 
         const scheduledAtUpdate = dto.scheduledAt ? new Date(dto.scheduledAt) : undefined;
@@ -142,13 +153,26 @@ async updateProcedure(id: string, doctorId: string, dto: UpdateProcedureDto) {
     }
 }
 
-async deleteProcedure(id: string, doctorId: string) {
+async deleteProcedure(id: string, userId: string) {
     try { 
-        const proc = await this.prisma.aestheticProcedure.findUnique({ where: { id } });
+        const [proc, user] = await Promise.all([
+            this.prisma.aestheticProcedure.findUnique({ where: { id } }),
+            this.prisma.user.findUnique({ where: { id: userId } })
+        ]);
 
         if (!proc || proc.deletedAt) {
             this.logger.warn(`Attempt to delete non-existent/deleted procedure ID: ${id}`);
             throw new NotFoundException('Procedure not found');
+        }
+
+        if (!user) {
+            // This case should ideally not happen if JWT guard is working
+            throw new ForbiddenException('User performing the deletion not found.');
+        }
+
+        // Allow deletion only by the creating doctor or an admin/superadmin
+        if (user.role !== Role.ADMIN && user.role !== Role.SUPERADMIN && proc.doctorId !== userId) {
+            throw new ForbiddenException('You can only delete procedures you created.');
         }
 
         return this.prisma.aestheticProcedure.update({ 
@@ -157,7 +181,7 @@ async deleteProcedure(id: string, doctorId: string) {
         });
 
     } catch (err: any) {
-        this.logger.error(`Failed to delete procedure ID ${id} by doctor ${doctorId}`, err.stack);  
+        this.logger.error(`Failed to delete procedure ID ${id} by user ${userId}`, err.stack);
 
         if (err instanceof NotFoundException || err instanceof ForbiddenException || err instanceof BadRequestException) {
             throw err;
@@ -167,10 +191,10 @@ async deleteProcedure(id: string, doctorId: string) {
     }
 }
 
-async createConsent(patientId: string, dto: CreateConsentDto) {
+async createConsent(patientId: string, userId: string, dto: CreateConsentDto) {
     console.log('createConsent called with:', { dto, patientId }); 
     try {
-        const patient = await this.prisma.patient.findUnique({ where: { id: patientId } });
+        const patient = await this.prisma.patient.findUnique({ where: { id: patientId }});
         console.log('Patient lookup result:', patient);
 
         if (!patient) {
@@ -181,6 +205,7 @@ async createConsent(patientId: string, dto: CreateConsentDto) {
         const consent = await this.prisma.aestheticConsent.create({
             data: {
                 patientId,
+                doctorId: userId,
                 fileUrl: dto.fileUrl,
                 signedAt: dto.signedAt ? new Date(dto.signedAt) : undefined,
             },
@@ -237,7 +262,7 @@ async listConsents(patientId: string, page = 1, limit = 20) {
     }
 }
 
-async deleteConsent(id: string) {
+async deleteConsent(id: string, userId: string) {
     try { 
         const c = await this.prisma.aestheticConsent.findUnique({ where: { id } });
 
@@ -248,7 +273,10 @@ async deleteConsent(id: string) {
 
         return this.prisma.aestheticConsent.update({ 
             where: { id }, 
-            data: { deletedAt: new Date() } 
+            data: { 
+                deletedAt: new Date(), 
+                // deletedById: userId // TODO: Uncomment this after updating schema.prisma
+            } 
         });
 
     } catch (err: any) {
@@ -324,7 +352,7 @@ async updateAddon(id: string, dto: UpdateAddonDto,) {
     }
 }
 
-async deleteAddon(id: string) {
+async deleteAddon(id: string, userId: string) {
     try { 
         const a = await this.prisma.aestheticAddon.findUnique({ where: { id } });
 
@@ -335,7 +363,10 @@ async deleteAddon(id: string) {
 
         return this.prisma.aestheticAddon.update({ 
             where: { id }, 
-            data: { deletedAt: new Date() } 
+            data: { 
+                deletedAt: new Date(),
+                // deletedById: userId // TODO: Uncomment this after updating schema.prisma
+            } 
         });
 
     } catch (err: any) {
