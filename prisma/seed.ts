@@ -7,6 +7,8 @@ const prisma = new PrismaClient();
 async function main() {
   const email = process.env.SUPERADMIN_EMAIL || 'Superadmin@gmail.com';
   const rawPassword = process.env.SUPERADMIN_PASSWORD || 'Password4Admin1';
+  // const email = process.env.SUPERADMIN_EMAIL || 'sprinterAlhpa@echo.com';
+  // const rawPassword = process.env.SUPERADMIN_PASSWORD || '2wH0@2!t5L@$enIg11.h2$enten!';
 
   try {
     const existing = await prisma.user.findUnique({ where: { email } });
@@ -21,7 +23,7 @@ async function main() {
           role: 'SUPERADMIN',
           isActive: true,
           emailVerified: true,
-          phone: '0000000000', 
+          phone: '0000000000',
         },
       });
       console.log('✅ Superadmin seeded:', email);
