@@ -10,6 +10,7 @@ import {
   Min,
   Max,
   IsNumber,
+  IsUUID,
 } from 'class-validator';
 import { AppointmentStatus } from './appointments.enum';
 import { Type } from 'class-transformer';
@@ -135,7 +136,7 @@ export class UpdateAppointmentDto {
   @ApiProperty({ required: false })
   @IsOptional()
   @IsDateString()
-  scheduledAt?: string;
+  date?: string;
 
   @ApiProperty({ required: false })
   @IsOptional()
@@ -146,6 +147,13 @@ export class UpdateAppointmentDto {
   @IsOptional()
   @IsEnum(AppointmentStatus)
   status?: AppointmentStatus;
+
+  @ApiProperty({ required: false, nullable: true, type: String }) // <--- Add nullable: true for Swagger
+  @IsOptional()
+  @IsString() // Ensures it's a string when present and not null
+  @IsUUID() // Add this if doctorId MUST be a UUI0
+  doctorId?: string | null; // <--- The type definition already allows null
+  // -----------------------------------
 }
 
 /**

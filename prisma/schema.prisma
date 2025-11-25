@@ -821,17 +821,20 @@ model NoteSuggestion {
 
 model AuditTrail {
   id                String   @id @default(cuid())
-  actorId           String? // user who performed the action
+  actorId           String // user who performed the action
   actorRole         String
+  actionDescription String?
   action            String // e.g., "CREATE_PATIENT", "APPROVE_APPOINTMENT"
   entityType        String // e.g., "PATIENT", "APPOINTMENT"
   entityId          String
-  actionDescription String?
+  before            String?  @db.Text // State before change (JSON string)
+  after             String?  @db.Text // State after change (JSON string)
   details           String?
   ipAddress         String? // optional JSON or description
+  userAgent         String?
   createdAt         DateTime @default(now())
-
-  user User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  user              User?    @relation(fields: [userId], references: [id])
+  userId            String?
 
   @@index([actorId])
   @@index([action])

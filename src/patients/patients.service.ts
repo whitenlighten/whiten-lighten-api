@@ -253,8 +253,10 @@ export class PatientsService {
     if (query.q) {
       where.OR = [
         { email: { contains: query.q, mode: 'insensitive' } },
+        { phone: { contains: query.q, mode: 'insensitive' } },
         { firstName: { contains: query.q, mode: 'insensitive' } },
         { lastName: { contains: query.q, mode: 'insensitive' } },
+        { patientId: { contains: query.q, mode: 'insensitive' } },
       ];
     }
 
