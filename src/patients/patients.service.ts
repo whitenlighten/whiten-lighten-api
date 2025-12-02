@@ -15,16 +15,18 @@ import {
   SelfRegisterPatientDto,
   UpdatePatientDto,
 } from './patients.dto';
-import { getPatientId } from 'src/utils/patient-id.util';
 import { NotificationsService } from 'src/notification/notifications.service';
 import { error } from 'console';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
+import { AuditTrailService } from 'src/audit-trail/auditTrail.service';
+import { generateSystemId } from 'src/utils/id-generator.util';
 
 @Injectable()
 export class PatientsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
+    private readonly auditTrailService: AuditTrailService,
   ) {}
 
   /**
@@ -58,7 +60,7 @@ export class PatientsService {
           phone: createDto.phone,
           email: createDto.email,
           address: createDto.address,
-          patientId: await getPatientId(),
+          patientId: await generateSystemId('PATIENT'),
           registeredById: registeredBy,
         },
       });
@@ -173,12 +175,20 @@ export class PatientsService {
           gender: createDto.gender,
           age: createDto.age ? parseInt(createDto.age, 10) : undefined,
           status: PatientStatus.PENDING,
-          patientId: await getPatientId(),
+          patientId: await generateSystemId('PATIENT'),
           registrationType: RegistrationType.SELF,
           userId: user.id,
         },
       });
-
+      await this.auditTrailService.log({
+        action: 'PATIENT_CREATED',
+        entityType: 'PATIENT',
+        entityId: patient.id,
+        actorId: user.id,
+        actorRole: user.role,
+        after: patient,
+        details: createDto,
+      });
       await this.notificationsService.create({
         title: 'Registration Submitted',
         message: `Dear ${patient.firstName}, your registration has been received and is pending approval.`,
@@ -246,8 +256,10 @@ export class PatientsService {
 
     const where: any = {};
 
-    if (query.doctorId || user.role === Role.DOCTOR) {
-      where.primaryDoctorId = query.doctorId || user.id;
+    if (user.role === Role.DOCTOR) {
+      where.primaryDoctorId = user.id;
+    } else if (query.doctorId) {
+      where.primaryDoctorId = query.doctorId;
     }
 
     if (query.q) {
@@ -413,6 +425,16 @@ export class PatientsService {
     try {
       const updated = await this.prisma.patient.update({ where: { id }, data: dataToUpdate });
       console.log('[update] Successfully updated patient in DB:', updated);
+      await this.auditTrailService.log({
+        action: 'PATIENT_UPDATED',
+        entityType: 'PATIENT',
+        entityId: id,
+        actorId: user.id,
+        actorRole: user.role,
+        before: patient,
+        after: updated,
+        details: updateDto,
+      });
 
       // 👇 Notify patient of profile update
       await this.notificationsService.create({
@@ -458,6 +480,16 @@ export class PatientsService {
       data: { status: PatientStatus.ARCHIVED },
     });
 
+    await this.auditTrailService.log({
+      action: 'PATIENT_ARCHIVED',
+      entityType: 'PATIENT',
+      entityId: id,
+      actorId: user.id,
+      actorRole: user.role,
+      before: patient,
+      after: archive,
+    });
+
     await this.notificationsService.create({
       title: 'Profile Archived',
       message: `Your profile has been archived by an administrator.`,
@@ -488,6 +520,16 @@ export class PatientsService {
     const restoredPatient = await this.prisma.patient.update({
       where: { id },
       data: { status: PatientStatus.ACTIVE },
+    });
+
+    await this.auditTrailService.log({
+      action: 'PATIENT_UNARCHIVED',
+      entityType: 'PATIENT',
+      entityId: id,
+      actorId: user.id,
+      actorRole: user.role,
+      before: patient,
+      after: restoredPatient,
     });
 
     // You can optionally send a notification here
@@ -621,6 +663,16 @@ export class PatientsService {
       },
     });
 
+    await this.auditTrailService.log({
+      action: 'PATIENT_HISTORY_ADDED',
+      entityType: 'PATIENT',
+      entityId: patientId,
+      actorId: createdBy.id,
+      actorRole: createdBy.role,
+      after: history,
+      details: { type, notes },
+    });
+
     if (!history) throw new InternalServerErrorException('Unable to add history');
 
     console.log(`Successfully created patient history record with ID: ${history.id}`);
@@ -646,6 +698,16 @@ export class PatientsService {
         type,
         message,
       },
+    });
+
+    await this.auditTrailService.log({
+      action: 'COMMUNICATION_LOGGED',
+      entityType: 'PATIENT',
+      entityId: patientId,
+      actorId: patientId, // or createdBy
+      actorRole: 'SYSTEM',
+      after: communication,
+      details: { type, message },
     });
 
     await this.notificationsService.create({

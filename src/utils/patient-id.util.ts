@@ -1,29 +1,29 @@
-// src/utils/patient-id.util.ts
-import { PrismaClient } from '@prisma/client';
+// // src/utils/patient-id.util.ts
 
-const CROCKFORD_BASE32 = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
-const prisma = new PrismaClient();
+// import { PrismaClient } from '@prisma/client';
 
-export async function generatePatientId(): Promise<string> {
-  // Atomically increment the counter
-  const counter = await prisma.patientCounter.update({
-    where: { id: 1 },
-    data: { value: { increment: 1 } },
-  });
+// const CROCKFORD_BASE32 = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+// const prisma = new PrismaClient();
 
-  let num = counter.value;
-  let encoded = '';
+// export async function generatePatientId(): Promise<string> {
+//   // Atomically increment the counter
+//   const counter = await prisma.patientCounter.update({
+//     where: { id: 1 },
+//     data: { value: { increment: 1 } },
+//   });
 
-  for (let i = 0; i < 5; i++) {
-    encoded = CROCKFORD_BASE32[num % 32] + encoded;
-    num = Math.floor(num / 32);
-  }
+//   let num = counter.value;
+//   let encoded = '';
 
-  return 'WL' + encoded.padStart(5, '0') + 'PAT';
-}
+//   for (let i = 0; i < 5; i++) {
+//     encoded = CROCKFORD_BASE32[num % 32] + encoded;
+//     num = Math.floor(num / 32);
+//   }
 
+//   return 'WL' + encoded.padStart(5, '0') + 'PAT';
+// }
 
-export async function getPatientId(): Promise<string> {
-  const patientId = await generatePatientId();
-  return patientId;
-}
+// export async function getPatientId(): Promise<string> {
+//   const patientId = await generatePatientId();
+//   return patientId;
+// }

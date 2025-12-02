@@ -1,13 +1,13 @@
 // src/modules/users/dto/create-user.dto.ts
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
-    IsEmail,
-    IsEnum,
-    IsNumberString,
-    IsOptional,
-    IsPhoneNumber,
-    IsString,
-    MinLength,
+  IsEmail,
+  IsEnum,
+  IsNumberString,
+  IsOptional,
+  IsPhoneNumber,
+  IsString,
+  MinLength,
 } from 'class-validator';
 import { Role } from '@prisma/client';
 
@@ -39,6 +39,11 @@ export class CreateUserDto {
   @ApiProperty({ enum: Role, example: Role.DOCTOR })
   @IsEnum(Role)
   role!: Role;
+
+  @ApiProperty({ example: 'WLN7FJ9Q' })
+  @IsOptional()
+  @IsString()
+  staffCode?: string;
 }
 
 export class UpdateUserDto {

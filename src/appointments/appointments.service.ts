@@ -17,6 +17,7 @@ import { AppointmentStatus } from './appointments.enum';
 import { MailService } from 'src/utils/mail.service';
 import { PatientStatus, User } from '@prisma/client';
 import { Role } from '@prisma/client';
+import { AuditTrailService } from 'src/audit-trail/auditTrail.service';
 
 @Injectable()
 export class AppointmentsService {
@@ -26,6 +27,7 @@ export class AppointmentsService {
     private prisma: PrismaService,
     private patientsService: PatientsService,
     private mailService: MailService,
+    private auditTrailService: AuditTrailService,
   ) {}
 
   // --- UPDATED METHOD: create(dto) ---
@@ -186,6 +188,20 @@ export class AppointmentsService {
           this.logger.log(
             `Sending appoin ment notification to existing active patient: ${patient.email}`,
           );
+          await this.auditTrailService.log({
+            action: 'PUBLIC_APPOINTMENT_BOOKED',
+            entityType: 'APPOINTMENT',
+            entityId: appointment.id,
+            actorId: 'PUBLIC_USER',
+            actorRole: 'PUBLIC',
+            details: {
+              patientId: patient.id,
+              patientEmail: patient.email,
+              service: dto.service,
+              date: appointmentDateTime,
+            },
+          });
+
           await this.mailService.sendAppointmentNotificationToPatient(
             patient.email,
             patient.firstName,
@@ -242,6 +258,18 @@ export class AppointmentsService {
         },
       });
       this.logger.log(`New appointment ${appointment.id} created for new patient ${patient.id}`);
+      // 🔔 Notify Staff
+      await this.notifyStaffOfPublicBooking(patient, appointment, appointmentDateTime);
+
+      // 📝 Audit Log
+      await this.auditTrailService.log({
+        action: 'PUBLIC_APPOINTMENT_BOOKED',
+        entityType: 'APPOINTMENT',
+        entityId: appointment.id,
+        actorId: 'PUBLIC_USER',
+        actorRole: 'PUBLIC',
+        details: dto,
+      });
 
       this.logger.log(`Sending appointment notification to new patient: ${patient.email}`);
       this.mailService
@@ -287,6 +315,42 @@ export class AppointmentsService {
       );
       if (err instanceof BadRequestException) throw err;
       throw new InternalServerErrorException('Could not book appointment.');
+    }
+  }
+
+  private async notifyStaffOfPublicBooking(
+    patient: any,
+    appointment: any,
+    appointmentDateTime: string,
+  ) {
+    // Fetch Superadmin, Admin, and Frontdesk
+    const staff = await this.prisma.user.findMany({
+      where: {
+        role: {
+          in: ['SUPERADMIN', 'ADMIN', 'FRONTDESK'],
+        },
+      },
+    });
+
+    const subject = `🩺 NEW PUBLIC APPOINTMENT BOOKING`;
+    const message = `
+    A new appointment was booked publicly.
+
+    Patient: ${patient.firstName} ${patient.lastName}
+    Email: ${patient.email}
+    Date: ${appointmentDateTime}
+    Service: ${appointment.service}
+    Status: ${appointment.status}
+
+    Please review and take necessary action.
+  `;
+
+    for (const s of staff) {
+      if (s.email) {
+        this.mailService
+          .sendMail(s.email, subject, message)
+          .catch((err) => this.logger.error(`Failed to notify ${s.role} at ${s.email}`, err.stack));
+      }
     }
   }
 
@@ -390,89 +454,6 @@ export class AppointmentsService {
       throw new InternalServerErrorException('Could not update appointment status.');
     }
   } // --- EXISTING METHODS (UNCHANGED) ---
-
-  //OLD UPDATE
-  //   async updateAppointment(
-  //     id: string,
-  //     update: { status?: AppointmentStatus; date?: Date; reason?: string },
-  //   ) {
-  //     this.logger.debug(`Attempting to update appointment ${id}`);
-  //     try {
-  //       const appt = await this.prisma.appointment.findUnique({ where: { id } });
-  //       if (!appt) throw new NotFoundException('Appointment not found');
-
-  //  const updatedAppointment = await this.prisma.appointment.update({
-  //         where: { id },
-  //         data: {
-  //           status: (update.status ?? appt.status) as any,
-  //           date: update.date ?? appt.date,
-  //           reason: update.reason ?? appt.reason,
-  //         },
-  //       });
-  //       this.logger.log(`Successfully updated appointment ${id}`);
-  //       return updatedAppointment;
-  //     } catch (err: any) {
-  //       this.logger.error(`Failed to update appointment ${id}: ${err.message}`, err.stack);
-  //       if (err instanceof NotFoundException) throw err;
-  //       throw new InternalServerErrorException('Could not update appointment.');
-  //     }
-  //   }
-
-  //   async findAll(query: QueryAppointmentsDto) {
-  //     this.logger.debug(`Finding all appointments with query: ${JSON.stringify(query)}`);
-  //     try {
-  //       const page = Math.max(query.page || 1, 1);
-  //       const limit = Math.min(Math.max(query.limit || 20, 1), 100);
-  //       const skip = (page - 1) * limit;
-
-  //       const where: any = {};
-
-  //       if (query.doctorId) {
-  //         where.doctorId = query.doctorId;
-  //       }
-  //     if (query.patientId) {
-  //       where.patientId = query.patientId;
-  //     }
-
-  //     if (query.status) {
-  //       where.status = query.status;
-  //     }
-  //     if (query.q) {
-  //       where.OR = [
-  //         { reason: { contains: query.q, mode: 'insensitive' } },
-  //         { service: { contains: query.q, mode: 'insensitive' } },
-  //       ];
-  //     }
-
-  //     const [total, data] = await Promise.all([
-  //       this.prisma.appointment.count({ where }), // Run count query
-  //       this.prisma.appointment.findMany({
-  //         where,
-  //         skip,
-  //         take: limit,
-  //         orderBy: { date: 'desc' },
-  //         include: {
-  //           patient: true,
-  //           doctor: {
-  //             select: {
-  //               id: true,
-  //               firstName: true,
-  //               lastName: true,
-  //               email: true,
-  //               specialization: true,
-  //             },
-  //           },
-  //         },
-  //       }),
-  //     ]);
-
-  //     this.logger.log(`Found ${data.length} of ${total} appointments.`);
-  //     return { meta: { total, page, limit, pages: Math.ceil(total / limit) }, data };
-  //   } catch (err: any) {
-  //     this.logger.error(`Failed to find all appointments: ${err.message}`, err.stack);
-  //     throw new InternalServerErrorException('Could not retrieve appointments.');
-  //   }
-  // }
 
   //NEW UPDATE
   async updateAppointment(id: string, update: UpdateAppointmentDto) {

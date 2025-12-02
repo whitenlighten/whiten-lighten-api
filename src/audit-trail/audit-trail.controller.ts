@@ -6,6 +6,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Role } from '@prisma/client';
 import { Roles } from 'src/auth/decorator/roles.decorator';
 import { AuditQueryDto } from './audit-trail.dto';
+import { GetUser } from 'src/common/decorator/get-user.decorator';
 
 @ApiTags('Audit Trail')
 @Controller('audit-trail')
@@ -44,5 +45,16 @@ export class AuditTrailController {
   findByEntity(@Param('entityType') entityType: string, @Param('entityId') entityId: string) {
     this.logger.log(`Request for audit history for ${entityType}:${entityId}.`);
     return this.auditTrailService.findByEntity(entityType, entityId);
+  }
+
+  @Get('activities')
+  async getActivities(@Query() query: any, @GetUser() user: { id: string; role: string }) {
+    const filters: any = { limit: query.limit ?? 10 };
+
+    if (user.role === 'DOCTOR') filters.actorId = user.id;
+    if (user.role === 'NURSE') filters.actorId = user.id;
+    if (user.role === 'FRONTDESK') filters.roles = ['FRONTDESK'];
+
+    return this.auditTrailService.findAll(filters);
   }
 }

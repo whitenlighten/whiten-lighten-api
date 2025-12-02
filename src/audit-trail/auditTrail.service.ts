@@ -67,6 +67,7 @@ export class AuditTrailService {
           entityId: entityId,
           actorId: actorId,
           actorRole: actorRole,
+          userId: actorId !== 'SYSTEM' ? actorId : null,
           actionDescription: finalActionDescription,
 
           // State changes and context (serialized)
@@ -108,6 +109,9 @@ export class AuditTrailService {
       if (filters.actorId) where.actorId = { contains: filters.actorId, mode: 'insensitive' };
       if (filters.entityType)
         where.entityType = { contains: filters.entityType, mode: 'insensitive' };
+      if (filters.roles) {
+        where.actorRole = { in: filters.roles };
+      }
       if (filters.action) where.action = { contains: filters.action, mode: 'insensitive' };
 
       // 2. Date Range Filtering (Using Service 2's robust end-of-day logic)
@@ -247,21 +251,80 @@ export class AuditTrailService {
    * (Retained from Service 1)
    */
   private generateDefaultDescription(action: string, entityType: string, entityId: string): string {
-    const entityIdentifier = entityId && entityId !== 'N/A' ? ` (ID: ${entityId})` : '';
-    // Convert PascalCase/camelCase entityType to human-readable
-    const entityTypeName = entityType.replace(/([A-Z])/g, ' $1').trim() || entityType;
+    const idText = entityId && entityId !== 'N/A' ? ` (ID: ${entityId})` : '';
+
+    // Convert PascalCase or ANY_CASE to readable form:
+    const prettyEntity = entityType
+      .replace(/[_\-]/g, ' ')
+      .replace(/([A-Z])/g, ' $1')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toUpperCase();
 
     switch (action) {
-      // ... (Include your comprehensive list of case statements here) ...
+      // -------------- USER & AUTH ----------------
       case 'USER_LOGIN':
-        return `User logged in.`;
+        return `🔐 User logged in`;
+      case 'USER_LOGOUT':
+        return `🔓 User logged out`;
+      case 'USER_REGISTERED':
+        return `🆕 New User Registered${idText}`;
+
+      // -------------- PATIENTS -------------------
       case 'PATIENT_CREATED':
-        return `A new ${entityTypeName} was created${entityIdentifier}.`;
+        return `🆕 New Patient Created${idText}`;
+      case 'PATIENT_UPDATED':
+        return `👤 Patient Profile Updated${idText}`;
+      case 'PATIENT_ARCHIVED':
+        return `📦 Patient Archived${idText}`;
+      case 'PATIENT_UNARCHIVED':
+        return `♻️ Patient Restored${idText}`;
+      case 'PATIENT_APPROVED':
+        return `✅ Patient Approved${idText}`;
+      case 'PATIENT_DELETED':
+        return `🗑️ Patient Deleted${idText}`;
+
+      // -------------- APPOINTMENTS ---------------
+      case 'APPOINTMENT_CREATED':
+        return `📅 New Appointment Created${idText}`;
+      case 'APPOINTMENT_BOOKED':
+        return `📅 Appointment Booked${idText}`;
+      case 'PUBLIC_APPOINTMENT_BOOKED':
+        return `🌐 Public Appointment Booked${idText}`;
+      case 'APPOINTMENT_CONFIRMED':
+        return `✅ Appointment Confirmed${idText}`;
+      case 'APPOINTMENT_CANCELLED':
+        return `❌ Appointment Cancelled${idText}`;
+      case 'APPOINTMENT_COMPLETED':
+        return `✔️ Appointment Completed${idText}`;
       case 'APPOINTMENT_RESCHEDULED':
-        return `${entityTypeName} was rescheduled${entityIdentifier}.`;
-      // Default catch-all
+        return `🔄 Appointment Rescheduled${idText}`;
+      case 'APPOINTMENT_ASSIGNED':
+        return `👨‍⚕️ Doctor Assigned to Appointment${idText}`;
+      case 'APPOINTMENT_UNASSIGNED':
+        return `🚫 Doctor Unassigned from Appointment${idText}`;
+
+      // -------------- NOTIFICATIONS --------------
+      case 'NOTIFICATION_SENT':
+        return `📥 Notification Sent${idText}`;
+      case 'EMAIL_SENT':
+        return `📧 Email Notification Sent${idText}`;
+
+      // -------------- HISTORY / RECORDS ----------
+      case 'ADD_MEDICAL_HISTORY':
+        return `📘 Medical History Added${idText}`;
+      case 'ADD_DENTAL_HISTORY':
+        return `🦷 Dental History Added${idText}`;
+      case 'HISTORY_UPDATED':
+        return `📚 Patient History Updated${idText}`;
+
+      // -------------- FRONTDESK ACTIONS ----------
+      case 'FRONTDESK_APPROVAL':
+        return `🛎️ Frontdesk Approval Completed${idText}`;
+
+      // -------------- FALLBACK -------------------
       default:
-        return `Action '${action}' performed on ${entityTypeName}${entityIdentifier}.`;
+        return `${prettyEntity} • ${action.replace(/_/g, ' ').toLowerCase()}${idText}`;
     }
   }
 

@@ -261,14 +261,14 @@ model User {
   // --- NEW FIELDS (for OAuth + 2FA) ---
   oauthProvider       String? // e.g., "google"
   oauthId             String? // provider-specific id
-  twoFactorEnabled    Boolean @default(false)
+  twoFactorEnabled    Boolean   @default(false)
   twoFactorSecret     String? // base32 secret for authenticator app
   twoFactorTempSecret String? // ADDED (temporary during setup)
-
-  lastLogin DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
+  staffCode           String?   @unique //NEW (WLDxxxxx or WLNxxxxx)
+  lastLogin           DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  deletedAt           DateTime?
 
   // relation
   refreshTokens           RefreshToken[]
@@ -616,6 +616,13 @@ model PatientCounter {
   updatedAt DateTime @updatedAt
 }
 
+model IdCounter {
+  id        Int      @id @default(autoincrement())
+  role      String   @unique
+  value     Int      @default(0)
+  updatedAt DateTime @updatedAt
+}
+
 model IvRecipe {
   id          String      @id @default(cuid())
   name        String
@@ -823,8 +830,8 @@ model AuditTrail {
   id                String   @id @default(cuid())
   actorId           String // user who performed the action
   actorRole         String
-  actionDescription String?
   action            String // e.g., "CREATE_PATIENT", "APPROVE_APPOINTMENT"
+  actionDescription String?
   entityType        String // e.g., "PATIENT", "APPOINTMENT"
   entityId          String
   before            String?  @db.Text // State before change (JSON string)
@@ -833,8 +840,8 @@ model AuditTrail {
   ipAddress         String? // optional JSON or description
   userAgent         String?
   createdAt         DateTime @default(now())
-  user              User?    @relation(fields: [userId], references: [id])
   userId            String?
+  user              User?    @relation(fields: [userId], references: [id])
 
   @@index([actorId])
   @@index([action])
