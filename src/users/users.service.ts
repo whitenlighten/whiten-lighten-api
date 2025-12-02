@@ -13,6 +13,7 @@ import * as bcrypt from 'bcrypt';
 import { Role } from '@prisma/client';
 import { MailService } from 'src/utils/mail.service';
 import { ChangeRoleDto, CreateUserDto, QueryUsersDto, UpdateUserDto } from './users.dto';
+import { generateSystemId } from 'src/utils/id-generator.util';
 
 @Injectable()
 export class UsersService {
@@ -37,6 +38,13 @@ export class UsersService {
     if (dto.role === Role.ADMIN && callerRole !== Role.SUPERADMIN) {
       throw new ForbiddenException('Only SUPERADMIN can create ADMIN role');
     }
+    if (dto.role === Role.DOCTOR) {
+      dto.staffCode = await generateSystemId('DOCTOR');
+    }
+
+    if (dto.role === Role.NURSE) {
+      dto.staffCode = await generateSystemId('NURSE');
+    }
 
     const TIMEOUT_MS = 10000;
 
@@ -59,6 +67,7 @@ export class UsersService {
           lastName: dto.lastName,
           phone: dto.phone,
           role: dto.role,
+          staffCode: dto.staffCode,
         },
       });
 
