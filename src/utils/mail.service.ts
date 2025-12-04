@@ -17,7 +17,7 @@ export class MailService {
   private readonly logger = new Logger(MailService.name);
   private transporter: nodemailer.Transporter | null = null;
   private resend: Resend | null = null;
-  private provider: 'gmail' | 'resend';
+  private provider!: 'gmail' | 'resend';
 
   constructor(private readonly config: ConfigService) {
     const host = this.config.get<string>('SMTP_HOST') || 'smtp.gmail.com';
