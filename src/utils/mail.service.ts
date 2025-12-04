@@ -2,6 +2,7 @@ import { Injectable, Logger, InternalServerErrorException } from '@nestjs/common
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 import SMTPTransport = require('nodemailer/lib/smtp-transport');
+import { Resend } from 'resend';
 
 // Interface must be defined outside the class
 interface MailData {
@@ -14,35 +15,72 @@ interface MailData {
 @Injectable()
 export class MailService {
   private readonly logger = new Logger(MailService.name);
-  private transporter: nodemailer.Transporter;
+  private transporter: nodemailer.Transporter | null = null;
+  private resend: Resend | null = null;
+  private provider: 'gmail' | 'resend';
 
   constructor(private readonly config: ConfigService) {
-    const host = this.config.get<string>('SMTP_HOST') || 'smtp.gmail.com';
-    const port = Number(this.config.get<string>('SMTP_PORT') || 587);
-    const secure = port === 587; // Use true for 465, false for other ports like 587
+    this.provider = (this.config.get<string>('MAIL_PROVIDER') as 'gmail' | 'resend') || 'gmail';
+    this.logger.log(`📧 Mail provider selected: ${this.provider}`);
+
+    if (this.provider === 'gmail') {
+      this.setupGmailSMTP();
+    } else {
+      this.resend = new Resend(this.config.get<string>('RESEND_API_KEY'));
+    }
+
+    // const host = this.config.get<string>('SMTP_HOST') || 'smtp.gmail.com';
+    // const port = Number(this.config.get<string>('SMTP_PORT') || 587);
+    // const secure = port === 587; // Use true for 465, false for other ports like 587
+
+    // this.transporter = nodemailer.createTransport({
+    //   host,
+    //   port,
+    //   secure: false,
+    //   auth: {
+    //     user: this.config.get<string>('SMTP_USER'),
+    //     pass: this.config.get<string>('SMTP_PASS'),
+    //   },
+    //   tls: {
+    //     // for dev, if needed; in prod prefer valid certs
+    //     rejectUnauthorized: this.config.get<string>('SMTP_REJECT_UNAUTHORIZED') !== 'false',
+    //   },
+    // });
+
+    // this.transporter.verify((err, success) => {
+    //   if (err) {
+    //     this.logger.error('SMTP verification failed', err);
+    //   } else {
+    //     this.logger.log('SMTP transporter verified; ready to send emails');
+    //   }
+    //   if (success) {
+    //     this.logger.log('SMTP transporter verification succeeded');
+    //   }
+    // });
+  }
+  /** ------------------------
+   *  Gmail SMTP Setup
+   * ------------------------
+   */
+  private setupGmailSMTP() {
+    const host = this.config.get<string>('SMTP_HOST');
+    const port = Number(this.config.get<string>('SMTP_PORT'));
+    const user = this.config.get<string>('SMTP_USER');
+    const pass = this.config.get<string>('SMTP_PASS');
 
     this.transporter = nodemailer.createTransport({
       host,
       port,
       secure: false,
-      auth: {
-        user: this.config.get<string>('SMTP_USER'),
-        pass: this.config.get<string>('SMTP_PASS'),
-      },
-      tls: {
-        // for dev, if needed; in prod prefer valid certs
-        rejectUnauthorized: this.config.get<string>('SMTP_REJECT_UNAUTHORIZED') !== 'false',
-      },
+      auth: { user, pass },
+      tls: { rejectUnauthorized: false },
     });
 
     this.transporter.verify((err, success) => {
       if (err) {
-        this.logger.error('SMTP verification failed', err);
+        this.logger.error('❌ SMTP verification failed', err);
       } else {
-        this.logger.log('SMTP transporter verified; ready to send emails');
-      }
-      if (success) {
-        this.logger.log('SMTP transporter verification succeeded');
+        this.logger.log('✅ SMTP transporter verified & ready');
       }
     });
   }
@@ -52,8 +90,42 @@ export class MailService {
   } // This is the generic send method, it accepts individual arguments
 
   async sendMail(to: string, subject: string, text: string, html?: string) {
+    if (this.provider === 'gmail') {
+      return this.sendWithGmail(to, subject, text, html);
+    } else {
+      return this.sendWithResend(to, subject, text, html);
+    }
+  }
+
+  /** ------------------------
+   *  SEND USING RESEND
+   * ------------------------
+   */
+  private async sendWithResend(to: string, subject: string, text: string, html?: string) {
     try {
-      const result = await this.transporter.sendMail({
+      const result = await this.resend!.emails.send({
+        from: this.formatFrom(),
+        to,
+        subject,
+        html: html || `<p>${text}</p>`,
+        text,
+      });
+
+      this.logger.log(`📨 Resend delivered email to ${to}`);
+      return result;
+    } catch (err) {
+      this.logger.error('❌ Resend email failed', err);
+      throw new InternalServerErrorException('Failed to send email');
+    }
+  }
+
+  /** ------------------------
+   *  SEND USING GMAIL SMTP
+   * ------------------------
+   */
+  private async sendWithGmail(to: string, subject: string, text: string, html?: string) {
+    try {
+      const result = await this.transporter!.sendMail({
         from: this.formatFrom(),
         to,
         subject,
@@ -61,19 +133,36 @@ export class MailService {
         html: html || text,
       });
 
-      this.logger.log(`Mail sent to ${to} (messageId=${(result as any)?.messageId})`);
+      this.logger.log(`📨 Gmail sent email to ${to}`);
       return result;
     } catch (err) {
-      const transportOptions = this.transporter.options as SMTPTransport.Options;
-      const host = transportOptions.host ?? 'N/A';
-      const port = transportOptions.port ?? 'N/A';
-      this.logger.error(
-        `Failed to send email to ${to} via ${host}:${port}`,
-        (err as any).stack || err,
-      ); // Throw for flows that expect error; caller can catch and decide
+      this.logger.error('❌ Gmail SMTP failed', err);
       throw new InternalServerErrorException('Failed to send email');
     }
-  } // --- EXISTING METHODS (UNCHANGED) ---
+  }
+  // async sendMail(to: string, subject: string, text: string, html?: string) {
+  //   try {
+  //     const result = await this.transporter.sendMail({
+  //       from: this.formatFrom(),
+  //       to,
+  //       subject,
+  //       text,
+  //       html: html || text,
+  //     });
+
+  //     this.logger.log(`Mail sent to ${to} (messageId=${(result as any)?.messageId})`);
+  //     return result;
+  //   } catch (err) {
+  //     const transportOptions = this.transporter.options as SMTPTransport.Options;
+  //     const host = transportOptions.host ?? 'N/A';
+  //     const port = transportOptions.port ?? 'N/A';
+  //     this.logger.error(
+  //       `Failed to send email to ${to} via ${host}:${port}`,
+  //       (err as any).stack || err,
+  //     ); // Throw for flows that expect error; caller can catch and decide
+  //     throw new InternalServerErrorException('Failed to send email');
+  //   }
+  // } // --- EXISTING METHODS (UNCHANGED) ---
 
   async sendPasswordResetEmail(to: string, resetUrl: string) {
     const subject = 'Password reset request';

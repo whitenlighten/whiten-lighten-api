@@ -186,7 +186,7 @@ export class AppointmentsService {
           });
 
           this.logger.log(
-            `Sending appoin ment notification to existing active patient: ${patient.email}`,
+            `Sending appoinment notification to existing active patient: ${patient.email}`,
           );
           await this.auditTrailService.log({
             action: 'PUBLIC_APPOINTMENT_BOOKED',
