@@ -4,6 +4,7 @@
   "description": "API for Celeb Dent project",
   "scripts": {
     "build": "nest build",
+    "prisma:seed": "ts-node --compiler-options '{\\\"module\\\":\\\"CommonJS\\\"}' prisma/seed.ts",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "set NODE_ENV=production && node dist/src/main",
     "start:dev": "nest start --watch",

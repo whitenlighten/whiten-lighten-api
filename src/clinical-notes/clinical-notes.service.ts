@@ -7,12 +7,14 @@ import {
   Logger,
   Injectable,
 } from '@nestjs/common';
-import { Role } from '@prisma/client';
+// FIX 1: Import Prisma type definitions for update input and JsonNull
+import { Role, Prisma } from '@prisma/client'; 
 import { PrismaService } from 'prisma/prisma.service';
 import { MailService } from 'src/utils/mail.service';
 import { CreateClinicalNoteDto, QueryClinicalNotesDto, UpdateClinicalNoteDto } from './clinical-notes.dto';
 
 // --- Utility for data mapping ---
+// Note: 'extra' is kept here as it's used in the code to handle legacy/separate JSON input
 const TOP_LEVEL_FIELDS = ['observations', 'doctorNotes', 'treatmentPlan', 'extra'];
 
 @Injectable()
@@ -104,7 +106,8 @@ export class ClinicalNotesService {
           doctorNotes: doctorNotes ?? null,
           treatmentPlan: treatmentPlan ?? null,
           status: 'APPROVED', 
-          extendedData: Object.keys(extendedData).length ? extendedData : null,
+          // FIX 2: Use Prisma.JsonNull for null value assignment
+          extendedData: Object.keys(extendedData).length ? extendedData : Prisma.JsonNull,
         },
       });
 
@@ -154,36 +157,49 @@ export class ClinicalNotesService {
       const note = await this.prisma.clinicalNote.findUnique({ where: { id: noteId } });
       if (!note) throw new NotFoundException('Note not found');
       if (note.patientId !== patientId) throw new ForbiddenException('This note does not belong to the specified patient.');
-      
-      const oldData = { ...note }; // Capture pre-update state for audit
-      
-      // 3. Prepare updates (type-safe approach)
-      const { observations, doctorNotes, treatmentPlan, extra, ...extendedFields } = dto;
- 
-      const updates: Prisma.ClinicalNoteUpdateInput = {};
- 
-      // Assign top-level fields if they are provided in the DTO
-      if (observations !== undefined) updates.observations = observations;
-      if (doctorNotes !== undefined) updates.doctorNotes = doctorNotes;
-      if (treatmentPlan !== undefined) updates.treatmentPlan = treatmentPlan;
- 
-      // Merge extended data
-      const existingExtended = (note.extendedData as Record<string, any>) ?? {};
-      const providedExtended = { ...extendedFields };
-      if (extra && typeof extra === 'object') {
-        Object.assign(providedExtended, extra);
-      }
- 
-      const mergedExtended = { ...existingExtended, ...providedExtended };
-      updates.extendedData = Object.keys(mergedExtended).length ? mergedExtended : null;
+      
+      // const oldData = { ...note }; // Original: Capture pre-update state for audit (kept for context)
+
+      // 3. Prepare updates - START OF CLEANED UP BLOCK
+      // REMOVED: const updates: any = {};
+      // REMOVED: const { extra, ...rest } = dto;
+      
+      // Separating fields from DTO
+      const { observations, doctorNotes, treatmentPlan, extra, ...extendedFields } = dto;
+ 
+      // FIX 3: Single declaration of updates with correct Prisma type
+      const updates: Prisma.ClinicalNoteUpdateInput = {};
+ 
+      // Assign standard fields if provided
+      if (observations !== undefined) updates.observations = observations;
+      if (doctorNotes !== undefined) updates.doctorNotes = doctorNotes;
+      if (treatmentPlan !== undefined) updates.treatmentPlan = treatmentPlan;
+ 
+      // Merge extended data
+      const existingExtended = (note.extendedData as Record<string, any>) ?? {};
+      const providedExtended = { ...extendedFields };
+      if (extra && typeof extra === 'object') {
+        Object.assign(providedExtended, extra);
+      }
+ 
+      const mergedExtended = { ...existingExtended, ...providedExtended };
+ 
+      // Only update extendedData if there are fields provided in the DTO
+      if (Object.keys(providedExtended).length > 0) {
+        // FIX 4: Use Prisma.JsonNull for empty object to satisfy Prisma's JSON type
+        updates.extendedData = Object.keys(mergedExtended).length ? mergedExtended : Prisma.JsonNull;
+      }
+      // The rest of the duplicated logic blocks below this point were entirely removed.
+
+      updates.updatedAt = new Date(); 
 
       // 4. Perform update
       const updated = await this.prisma.clinicalNote.update({
         where: { id: noteId },
         data: updates,
       });
-      
-      // 5. Audit Log (Following UsersService Pattern)
+      
+      // 5. Audit Log (Following UsersService Pattern)
       this.prisma.auditLog
         .create({
           data: {
@@ -356,8 +372,8 @@ export class ClinicalNotesService {
           },
         }),
       ]);
-      
-      // 4. Audit Log (Following UsersService Pattern)
+      
+      // 4. Audit Log (Following UsersService Pattern)
       this.prisma.auditLog
         .create({
           data: {

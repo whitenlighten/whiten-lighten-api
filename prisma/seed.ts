@@ -24,6 +24,7 @@ async function main() {
           isActive: true,
           emailVerified: true,
           phone: '0000000000',
+          staffCode: 'SA001', // Add a staff code for the superadmin
         },
       });
       console.log('✅ Superadmin seeded:', email);
