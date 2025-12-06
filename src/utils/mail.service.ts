@@ -17,25 +17,63 @@ export class MailService {
   private readonly logger = new Logger(MailService.name);
   private transporter: nodemailer.Transporter | null = null;
   private resend: Resend | null = null;
-  private provider!: 'gmail' | 'resend';
+  private provider: 'gmail' | 'resend';
 
   constructor(private readonly config: ConfigService) {
-    const host = this.config.get<string>('SMTP_HOST') || 'smtp.gmail.com';
-    const port = Number(this.config.get<string>('SMTP_PORT') || 587);
-    const secure = port === 587; // Use true for 465, false for other ports like 587
+    this.provider = (this.config.get<string>('MAIL_PROVIDER') as 'gmail' | 'resend') || 'gmail';
+    this.logger.log(`📧 Mail provider selected: ${this.provider}`);
+
+    if (this.provider === 'gmail') {
+      this.setupGmailSMTP();
+    } else {
+      this.resend = new Resend(this.config.get<string>('RESEND_API_KEY'));
+    }
+
+    // const host = this.config.get<string>('SMTP_HOST') || 'smtp.gmail.com';
+    // const port = Number(this.config.get<string>('SMTP_PORT') || 587);
+    // const secure = port === 587; // Use true for 465, false for other ports like 587
+
+    // this.transporter = nodemailer.createTransport({
+    //   host,
+    //   port,
+    //   secure: false,
+    //   auth: {
+    //     user: this.config.get<string>('SMTP_USER'),
+    //     pass: this.config.get<string>('SMTP_PASS'),
+    //   },
+    //   tls: {
+    //     // for dev, if needed; in prod prefer valid certs
+    //     rejectUnauthorized: this.config.get<string>('SMTP_REJECT_UNAUTHORIZED') !== 'false',
+    //   },
+    // });
+
+    // this.transporter.verify((err, success) => {
+    //   if (err) {
+    //     this.logger.error('SMTP verification failed', err);
+    //   } else {
+    //     this.logger.log('SMTP transporter verified; ready to send emails');
+    //   }
+    //   if (success) {
+    //     this.logger.log('SMTP transporter verification succeeded');
+    //   }
+    // });
+  }
+  /** ------------------------
+   *  Gmail SMTP Setup
+   * ------------------------
+   */
+  private setupGmailSMTP() {
+    const host = this.config.get<string>('SMTP_HOST');
+    const port = Number(this.config.get<string>('SMTP_PORT'));
+    const user = this.config.get<string>('SMTP_USER');
+    const pass = this.config.get<string>('SMTP_PASS');
 
     this.transporter = nodemailer.createTransport({
       host,
       port,
       secure: false,
-      auth: {
-        user: this.config.get<string>('SMTP_USER'),
-        pass: this.config.get<string>('SMTP_PASS'),
-      },
-      tls: {
-        // for dev, if needed; in prod prefer valid certs
-        rejectUnauthorized: this.config.get<string>('SMTP_REJECT_UNAUTHORIZED') !== 'false',
-      },
+      auth: { user, pass },
+      tls: { rejectUnauthorized: false },
     });
 
     this.transporter.verify((err, success) => {
