@@ -5,7 +5,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  url = env("DATABASE_URL")
 }
 
 // Enums
@@ -204,6 +204,8 @@ model ClinicalNote {
   treatmentPlan String? // optional structured field
   status        NoteStatus @default(APPROVED)
 
+  extendedData	Json?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -258,6 +260,7 @@ model User {
   isActive       Boolean @default(true)
   emailVerified  Boolean @default(false)
 
+
   // --- NEW FIELDS (for OAuth + 2FA) ---
   oauthProvider       String? // e.g., "google"
   oauthId             String? // provider-specific id
@@ -279,7 +282,7 @@ model User {
   Appointment             Appointment[]
   approvedPatients        Patient[]            @relation("ApprovedPatients")
   patient                 Patient?             @relation("PatientProfile")
-  createdClinicalNotes    ClinicalNote[]       @relation(fields: [], references: [])
+  createdClinicalNotes    ClinicalNote[]
   createdNoteSuggestions  NoteSuggestion[]     @relation("NoteSuggestionCreatedBy")
   approvedNoteSuggestions NoteSuggestion[]     @relation("NoteSuggestionApprovedBy")
   createdPatientHistories PatientHistory[]     @relation("CreatedPatientHistories")
