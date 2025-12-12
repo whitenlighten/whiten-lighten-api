@@ -246,6 +246,8 @@ export class PatientsService {
    * =============================
    */
   async findAll(query: QueryPatientsDto, user: any) {
+    console.log('USER IN PATIENT SERVICE:', user);
+
     if (user.role === Role.PATIENT) {
       throw new ForbiddenException('Patients cannot list all patients');
     }
@@ -257,7 +259,7 @@ export class PatientsService {
     const where: any = {};
 
     if (user.role === Role.DOCTOR) {
-      where.primaryDoctorId = user.id;
+      where.primaryDoctorId = user.userId;
     } else if (query.doctorId) {
       where.primaryDoctorId = query.doctorId;
     }

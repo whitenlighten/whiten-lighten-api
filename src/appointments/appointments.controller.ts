@@ -47,8 +47,8 @@ export class AppointmentsController {
   @ApiBearerAuth('JWT-auth')
   @Roles(Role.SUPERADMIN, Role.ADMIN, Role.FRONTDESK, Role.DOCTOR, Role.NURSE)
   @Get()
-  async findAll(@Query() query: QueryAppointmentsDto) {
-    return this.appointmentsService.findAll(query);
+  async findAll(@Query() query: QueryAppointmentsDto, @Request() req: any) {
+    return this.appointmentsService.findAll(query, req.user);
   }
 
   @ApiOperation({ summary: 'Get all appointments for logged in patient' })
