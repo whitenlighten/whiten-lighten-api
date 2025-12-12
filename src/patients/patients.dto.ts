@@ -169,6 +169,36 @@ export class UpdatePatientDto extends PartialType(CreatePatientDto) {
   @IsOptional()
   @IsString()
   insuranceNumber?: string;
+
+  @ApiPropertyOptional({ example: 'Previous illness details' })
+  @IsOptional()
+  @IsString()
+  pastMedicalHistory?: string;
+
+  @ApiPropertyOptional({ example: 'Past surgeries done' })
+  @IsOptional()
+  @IsString()
+  pastSurgicalHistory?: string;
+
+  @ApiPropertyOptional({ example: 'List of medications' })
+  @IsOptional()
+  @IsString()
+  currentMedications?: string;
+
+  @ApiPropertyOptional({ example: 'Polio: 2010, Tetanus: 2021' })
+  @IsOptional()
+  @IsString()
+  immunizationRecords?: string;
+
+  @ApiPropertyOptional({ example: 'Diabetes runs in family' })
+  @IsOptional()
+  @IsString()
+  familyHistory?: string;
+
+  @ApiPropertyOptional({ example: 'Cash, Transfer, HMO' })
+  @IsOptional()
+  @IsString()
+  paymentMethod?: string;
 }
 
 export class ApprovePatientDto {

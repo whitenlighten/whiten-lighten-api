@@ -51,6 +51,7 @@ export class AppointmentsService {
           data: {
             patientId: dto.patientId, // required
             ...(dto.doctorId && { doctorId: dto.doctorId }), // optional
+            ...(dto.nurseId && { nurseId: dto.nurseId }),
             ...(dto.maritalStatus && { maritalStatus: dto.maritalStatus }), // optional
             reason: dto.reason,
             service: dto.service,
@@ -61,6 +62,20 @@ export class AppointmentsService {
         });
         this.logger.log(`Successfully created appointment ${newAppointment.id} in transaction.`);
 
+        // 🔥 2. Auto-assign doctor to patient
+        if (dto.doctorId) {
+          await tx.patient.update({
+            where: { id: dto.patientId },
+            data: { primaryDoctorId: dto.doctorId },
+          });
+          this.logger.log(
+            `Assigned doctor ${dto.doctorId} as primary doctor for patient ${dto.patientId}`,
+          );
+        }
+
+        if (dto.nurseId) {
+          this.logger.log(`Assigned nurse ${dto.nurseId} to appointment ${newAppointment.id}`);
+        }
         // Also fetch any data needed for notifications within the same transaction.
         const frontdeskUsers = await tx.user.findMany({ where: { role: 'FRONTDESK' } });
 
@@ -474,6 +489,9 @@ export class AppointmentsService {
       let newDoctor: User | null = null;
       let assignmentChanged = false;
 
+      let newNurse: User | null = null;
+      let nurseAssignmentChanged = false;
+
       // Prepare the data object for a true partial update
       const dataToUpdate: any = {};
       if (update.status !== undefined) dataToUpdate.status = update.status;
@@ -490,10 +508,7 @@ export class AppointmentsService {
         if (update.doctorId !== null) {
           this.logger.debug(`Validating doctor ID ${update.doctorId} for appointment ${id}.`);
           newDoctor = await this.prisma.user.findFirst({
-            where: {
-              id: update.doctorId,
-              role: { in: [Role.DOCTOR, Role.NURSE, Role.ADMIN, Role.SUPERADMIN] },
-            },
+            where: { id: update.doctorId, role: Role.DOCTOR },
           });
 
           if (!newDoctor) {
@@ -509,10 +524,28 @@ export class AppointmentsService {
           this.logger.debug(`Unassigning doctor from appointment ${id}`);
           newDoctor = null; // Ensure newDoctor is null for notification logic
         }
-
         // Add the doctorId (either a UUID or null) to the data to be updated.
         dataToUpdate.doctorId = update.doctorId;
       }
+
+      if (update.nurseId !== undefined) {
+        if (update.nurseId !== appt.nurseId) {
+          nurseAssignmentChanged = true;
+        }
+
+        if (update.nurseId !== null) {
+          newNurse = await this.prisma.user.findFirst({
+            where: { id: update.nurseId, role: Role.NURSE },
+          });
+
+          if (!newNurse) throw new NotFoundException(`Nurse with ID ${update.nurseId} not found.`);
+        } else {
+          this.logger.debug(`Unassigning nurse from appointment ${id}`);
+        }
+
+        dataToUpdate.nurseId = update.nurseId;
+      }
+
       // ----------------------------------------------------
 
       const updatedAppointment = await this.prisma.appointment.update({
@@ -552,6 +585,35 @@ export class AppointmentsService {
           );
         }
       }
+
+      // --- Nurse Assignment Notification ---
+      if (nurseAssignmentChanged && newNurse) {
+        const appointmentDateStr = updatedAppointment.date.toLocaleDateString();
+        const appointmentTimeStr = updatedAppointment.date.toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+        const appointmentDateTime = `${appointmentDateStr} at ${appointmentTimeStr}`;
+        const patientName = `${appt.patient.firstName} ${appt.patient.lastName}`;
+
+        if (newNurse.email) {
+          await this.mailService.sendMail(
+            newNurse.email,
+            '🧑‍⚕️ NEW NURSE ASSIGNMENT',
+            `
+      <p>Dear Nurse ${newNurse.firstName},</p>
+      <p>You have been assigned to a patient appointment:</p>
+      <ul>
+        <li><strong>Patient:</strong> ${patientName}</li>
+        <li><strong>Date/Time:</strong> ${appointmentDateTime}</li>
+        <li><strong>Service:</strong> ${updatedAppointment.service}</li>
+      </ul>
+      <p>Please check your dashboard for details.</p>
+      `,
+          );
+        }
+      }
+
       // ----------------------------------------------------
 
       return updatedAppointment;
@@ -587,7 +649,7 @@ export class AppointmentsService {
 
     await this.mailService.sendMail(doctorEmail, subject, html);
   }
-  async findAll(query: QueryAppointmentsDto) {
+  async findAll(query: QueryAppointmentsDto, user: any) {
     this.logger.debug(`Finding all appointments with query: ${JSON.stringify(query)}`);
     try {
       const page = Math.max(query.page || 1, 1);
@@ -595,6 +657,14 @@ export class AppointmentsService {
       const skip = (page - 1) * limit;
 
       const where: any = {};
+
+      if (user.role === Role.DOCTOR) {
+        where.doctorId = user.userId;
+      }
+
+      if (user.role === Role.NURSE) {
+        where.nurseId = user.userId;
+      }
       if (query.status) {
         where.status = query.status;
       }
@@ -623,6 +693,9 @@ export class AppointmentsService {
                 specialization: true,
               },
             },
+            nurse: {
+              select: { id: true, firstName: true, lastName: true, email: true },
+            },
           },
         }),
       ]);
@@ -641,10 +714,12 @@ export class AppointmentsService {
     const appointment = await this.prisma.appointment.findUnique({
       where: { id },
       include: {
-        patient: true, // Return all patient scalar fields
+        patient: true,
         doctor: {
-          // Select specific fields for doctor
           select: { id: true, firstName: true, lastName: true, email: true, specialization: true },
+        },
+        nurse: {
+          select: { id: true, firstName: true, lastName: true, email: true },
         },
       },
     });

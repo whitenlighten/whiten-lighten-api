@@ -30,6 +30,11 @@ export class CreateAppointmentDto {
   @IsString()
   doctorId?: string; // optional, staff may assign later
 
+  @ApiProperty({ description: 'Nurse ID for this appointment', required: false })
+  @IsOptional()
+  @IsString()
+  nurseId?: string; // optional, staff may assign later
+
   @ApiProperty({ description: 'Scheduled appointment date' })
   @IsDateString()
   date!: string; // required ISO date string
@@ -148,12 +153,17 @@ export class UpdateAppointmentDto {
   @IsEnum(AppointmentStatus)
   status?: AppointmentStatus;
 
-  @ApiProperty({ required: false, nullable: true, type: String }) // <--- Add nullable: true for Swagger
+  @ApiProperty({ required: false, nullable: true, type: String })
   @IsOptional()
-  @IsString() // Ensures it's a string when present and not null
-  @IsUUID() // Add this if doctorId MUST be a UUI0
-  doctorId?: string | null; // <--- The type definition already allows null
-  // -----------------------------------
+  @IsString()
+  @IsUUID()
+  doctorId?: string | null;
+
+  @ApiProperty({ required: false, nullable: true, type: String })
+  @IsOptional()
+  @IsString()
+  @IsUUID()
+  nurseId?: string | null;
 }
 
 /**
